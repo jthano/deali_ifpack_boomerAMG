@@ -19,34 +19,33 @@ namespace TrilinosWrappers {
  */
 class BoomerAMG_Parameters{
 public:
+	Hypre_Chooser solver_preconditioner_selection;
 	/**
 	 * BoomerAMG_Parameter_Base is a common base class for all parameters to inherit from.
 	 * The primary purpose of this class is to have a single pointer type for each parameter
 	 */
 	class BoomerAMG_Parameter_Base{
-	private:
-		virtual void set_parameter(std::vector<FunctionParameter *> *) = 0;
+	protected:
+		bool parameter_used=true;
+		virtual void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *) = 0;
 	};
 	/**
 	 * The BoomerAMG_Parameter abstract base class specifies how a parameter
 	 * should look.
 	 */
 	template<class parameter_type>
-	class BoomerAMG_Parameter : BoomerAMG_Parameter_Base{
+	class BoomerAMG_Parameter :public BoomerAMG_Parameter_Base{
 	public:
 		parameter_type value;
 	};
+
 	/**
 	 * The prerelax string specifies the points, order, and relaxation steps
 	 * for prerelaxation. The options are "A", "F", or "C" where A is relaxation over
 	 * all points, F is relaxation over the F-points, and C is relaxation over the
 	 * C-points. Multiple characters specify multiple relaxation steps and the order
 	 * matters. For example, "AA" specifies two relaxation steps of all points.
-	 */
-	class prerelax : public BoomerAMG_Parameter <std::string>{
-		void set_parameter(std::vector<FunctionParameter *> *);
-	};
-	/**
+	 *
 	 * The postrelax string specifies the points, order, and relaxation steps
 	 * for postrelaxation. The options are "A", "F", or "C" where A is relaxation over
 	 * all points, F is relaxation over the F-points, and C is relaxation over the
@@ -54,9 +53,10 @@ public:
 	 * matters. For example, "FFFC" specifies three post relaxations over F-points
 	 * followed by a relexation over C-points.
 	 */
-	class postrelax : public BoomerAMG_Parameter <std::string>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+	class pre_post_relax: public BoomerAMG_Parameter<std::pair<std::string,std::string>>{
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
+
 	/**
 	 * The relax_type integer variable sets the relaxation type.
 	 * Relaxation types, taken from the hypre documentation, are:
@@ -79,7 +79,7 @@ public:
 	 * </ul>
 	 */
 	class relax_type : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 	/**
 	 * The interp_type integer variable sets the interpolation type.
@@ -104,7 +104,7 @@ public:
 	 * </ul>
 	 */
 	class interp_type : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 	/**
 	 * The coarsen_type integer variable sets the coarsening algorithm.
@@ -124,11 +124,11 @@ public:
 	 * </ul>
 	 */
 	class coarsen_type : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class print_level : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter > *);
 	};
 
 	//int max_itter;
@@ -138,7 +138,7 @@ public:
 	 * will be allowed to use
 	 */
 	class max_levels : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter > *);
 	};
 
 	/**
@@ -151,13 +151,13 @@ public:
 	 * </ul>
 	 */
 	class cycle_type : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter > *);
 	};
 
 	/**
 	 */
 	class debug_flag : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter > *);
 	};
 	/**
 	 * sabs_flag sets whether the classical strength of connection test
@@ -166,23 +166,23 @@ public:
 	 * if set to 1, the absolute values of matrix coefficients are tested.
 	 */
 	class sabs_flag : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class print_ifpack_timing : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class amg_logging : public BoomerAMG_Parameter <int>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class strength_tolC : public BoomerAMG_Parameter <double>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class strength_tolR : public BoomerAMG_Parameter <double>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	/**
@@ -198,19 +198,19 @@ public:
 	 * </ul>
 	 */
 	class distance_R : public BoomerAMG_Parameter <double>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class filterA_tol : public BoomerAMG_Parameter <double>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class solve_tol : public BoomerAMG_Parameter <double>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 
 	class post_filter_R : public BoomerAMG_Parameter <double>{
-		void set_parameter(std::vector<FunctionParameter *> *);
+		void set_parameter(Hypre_Chooser, std::vector<FunctionParameter> *);
 	};
 	/**
 	 * The configuratoin_types enum is used to select a default variable values when
@@ -218,11 +218,16 @@ public:
 	 */
 	enum configuration_types {CLASSICAL_AMG,AIR,NONE};
 
+
 	BoomerAMG_Parameters(BoomerAMG_Parameters::configuration_types config_selection);
 
-	void set_parameter_list(std::vector<FunctionParameter *> *);
+	void set_parameter_list(std::vector<FunctionParameter> *);
 
 private:
+	/**
+	 * The paramer_list vector stores all the FunctionParameter that will
+	 * be used to set relevant parameters
+	 */
 	std::vector<BoomerAMG_Parameter_Base *> parameter_list;
 
 };
