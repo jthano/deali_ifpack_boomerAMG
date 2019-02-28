@@ -19,10 +19,22 @@ namespace TrilinosWrappers {
  */
 class BoomerAMG_Parameters{
 public:
+	/**
+	 * The BoomerAMG_Parameters class can be used for parameters to set either a solver of a preconditioner.
+	 * The FunctionParameter object in Ifpack needs to know whether parameters are being set of a
+	 * solver or preconditioner. Because BoomerAMG_Parameters sets up the paraemters in addition to storing them,
+	 * it must know whether it is being asked to provide parameters or a solver or preconditioner.
+	 */
 	Hypre_Chooser solver_preconditioner_selection;
 	/**
 	 * BoomerAMG_Parameter_Base is a common base class for all parameters to inherit from.
-	 * The primary purpose of this class is to have a single pointer type for each parameter
+	 * The primary purpose of this class is to have a single pointer type for each parameter.
+	 * Note that because set_parameter is virtual, calling set_parameter on a pointer to
+	 * BoomerAMG_Parameter_Base will call the set_parameter of the derived set_parameter.
+	 * BoomerAMG_Parameter_Base also stores a static vector of pointers of type BoomerAMG_Parameter_Base.
+	 * This is used by a derived class to store all the instances of derived classes created in one place.
+	 * This is done because each derived class is an individual parameter so the parameter_list object
+	 * can be used to iterate over all parameters.
 	 */
 	class BoomerAMG_Parameter_Base{
 		friend class BoomerAMG_Parameters;
