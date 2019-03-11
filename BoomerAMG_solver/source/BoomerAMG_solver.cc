@@ -100,5 +100,26 @@ void BoomerAMG_Parameters::set_relaxation_order(const Hypre_Chooser solver_preco
 
 }
 
+void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
+
+	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());
+	Ifpack_Hypre hypre_interface( sys_matrix_pt );
+
+	Teuchos :: ParameterList parameter_list;
+	parameter_list.set("Solver",Hypre_Solver::BoomerAMG);
+	parameter_list.set("SolverOrPrecondition",Hypre_Chooser::Solver);
+	parameter_list.set("SetPreconditioner",false);
+
+	parameters_obj.set_parameters(hypre_interface,Hypre_Chooser::Solver);
+
+	hypre_interface.Compute()  ;
+
+	Epetra_FEVector & ref_soln = solution.trilinos_vector();
+
+	int status = hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+
+}
+
+
 }
 DEAL_II_NAMESPACE_CLOSE

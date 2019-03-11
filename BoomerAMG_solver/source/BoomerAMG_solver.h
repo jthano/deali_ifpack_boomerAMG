@@ -98,9 +98,16 @@ private:
 
 class SolverBoomerAMG{
 public:
+
+	SolverBoomerAMG(BoomerAMG_Parameters & parameters_obj):parameters_obj(parameters_obj){};
+
 	void solve(LA::SparseMatrix & system_matrix,
 			   LA::Vector & right_hand_side,
 			   LA::Vector &solution);
+
+private:
+	BoomerAMG_Parameters & parameters_obj;
+
 };
 
 } // Close namespace TrilinosWrappers
