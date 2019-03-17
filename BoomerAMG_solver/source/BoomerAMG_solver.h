@@ -5,6 +5,7 @@
 #include <deal.II/lac/trilinos_vector.h>
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/base/config.h>
+#include <deal.II/base/exceptions.h>
 
 #include "boost/variant.hpp"
 
@@ -18,6 +19,8 @@ class BoomerAMG_Parameters{
 
 public:
 
+	enum default_configuration_type{AIR_AMG,CLASSICAL_AMG,NONE};
+
 	typedef boost::variant<int (*)(HYPRE_Solver, int),int (*)(HYPRE_Solver, double),int (*)(HYPRE_Solver,double, int),
 			int (*)(HYPRE_Solver, int, int),int (*)(HYPRE_Solver, int*),int (*)(HYPRE_Solver, double*),
 			int (*)(HYPRE_Solver, int**),std::nullptr_t> hypre_function_variant;
@@ -30,11 +33,12 @@ public:
 		hypre_function_variant hypre_function=nullptr;
 		std::function<void(const Hypre_Chooser, const parameter_data &, Ifpack_Hypre &)> set_function=nullptr;
 		parameter_data(param_value_variant value, hypre_function_variant hypre_function):value(value),hypre_function(hypre_function){};
+		parameter_data(param_value_variant value, std::function<void(const Hypre_Chooser, const parameter_data &, Ifpack_Hypre &)> set_function):value(value),set_function(set_function){};
 	};
 
-	BoomerAMG_Parameters();
+	BoomerAMG_Parameters(default_configuration_type config_selection);
 
-	enum default_configuration_type{AIR_AMG,CLASSICAL_AMG,NONE};
+
 
 	void set_parameters(Ifpack_Hypre & Ifpack_obj, const Hypre_Chooser solver_preconditioner_selection);
 
@@ -42,8 +46,6 @@ public:
 
 private:
 
-	void set_classical_amg_parameters();
-	void set_air_amg_parameters();
 
 	void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
 
@@ -84,9 +86,10 @@ private:
 
 		template <typename T, typename U>
 		void operator()(T & func, U & value){
-			// It will be an error to have any other combination of items
 			(void) func;
 			(void) value;
+
+			AssertThrow(false, ExcMessage("When setting a parameter, the hypre set function prototype\nshould match the type of the parameter value given"));
 		}
 
 	private:

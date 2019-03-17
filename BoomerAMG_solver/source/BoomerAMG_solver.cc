@@ -6,30 +6,40 @@ DEAL_II_NAMESPACE_OPEN
 namespace TrilinosWrappers
 {
 
-BoomerAMG_Parameters::BoomerAMG_Parameters(){
-	/*
-	parameters.insert( {"interp_type", parameter_data(100, & HYPRE_BoomerAMGSetInterpType)} );
-	parameters.insert( {"coarsen_type", parameter_data(6, & HYPRE_BoomerAMGSetCoarsenType)} );
-	parameters.insert( {"relax_type", parameter_data(0, & HYPRE_BoomerAMGSetRelaxType)} );
-	parameters.insert( {"max_hypre_itter", parameter_data(50, & HYPRE_BoomerAMGSetMaxIter)} );
-	parameters.insert( {"max_amg_levels", parameter_data(40, & HYPRE_BoomerAMGSetMaxLevels)} );
-	parameters.insert( {"amg_cycle_type", parameter_data(6, & HYPRE_BoomerAMGSetCycleType)} );
-	parameters.insert( {"sabs_flag", parameter_data(6, & HYPRE_BoomerAMGSetSabs)} );
 
-	parameters.insert( {"distance_R", parameter_data(2.0, & HYPRE_BoomerAMGSetRestriction)} );
-	parameters.insert( {"strength_tolC", parameter_data(2.0, & HYPRE_BoomerAMGSetStrongThreshold)} );
-	parameters.insert( {"strength_tolR", parameter_data(2.0, & HYPRE_BoomerAMGSetStrongThresholdR)} );
-	parameters.insert( {"filterA_tol", parameter_data(2.0, & HYPRE_BoomerAMGSetADropTol)} );
-	parameters.insert( {"post_filter_R", parameter_data(2.0, & HYPRE_BoomerAMGSetFilterThresholdR)} );
-	*/
 
-	parameters.insert( {"hypre_print_level", parameter_data(100, & HYPRE_BoomerAMGSetPrintLevel)} );
-	parameters.insert( {"coarsen_type", parameter_data(6, & HYPRE_BoomerAMGSetCoarsenType)} );
-	parameters.insert( {"relax_type", parameter_data(0, & HYPRE_BoomerAMGSetRelaxType)} );
-	parameters.insert( {"number_sweeps", parameter_data(1, & HYPRE_BoomerAMGSetNumSweeps)} );
-	parameters.insert( {"max_itter", parameter_data(50, & HYPRE_BoomerAMGSetMaxIter)} );
 
-	parameters.insert( {"solve_tol", parameter_data(1e-10, & HYPRE_BoomerAMGSetTol)} );
+BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_selection){
+
+	switch(config_selection)
+	{
+	case AIR_AMG:
+		parameters.insert( {"interp_type", parameter_data(100, & HYPRE_BoomerAMGSetInterpType)} );
+		parameters.insert( {"coarsen_type", parameter_data(6, & HYPRE_BoomerAMGSetCoarsenType)} );
+		parameters.insert( {"relax_type", parameter_data(0, & HYPRE_BoomerAMGSetRelaxType)} );
+		parameters.insert( {"max_hypre_itter", parameter_data(50, & HYPRE_BoomerAMGSetMaxIter)} );
+		parameters.insert( {"max_amg_levels", parameter_data(40, & HYPRE_BoomerAMGSetMaxLevels)} );
+		parameters.insert( {"sabs_flag", parameter_data(1, & HYPRE_BoomerAMGSetSabs)} );
+
+		parameters.insert( {"distance_R", parameter_data(2.0, & HYPRE_BoomerAMGSetRestriction)} );
+		parameters.insert( {"strength_tolC", parameter_data(0.25, & HYPRE_BoomerAMGSetStrongThreshold)} );
+		parameters.insert( {"strength_tolR", parameter_data(0.1, & HYPRE_BoomerAMGSetStrongThresholdR)} );
+		parameters.insert( {"filterA_tol", parameter_data(1.0e-4, & HYPRE_BoomerAMGSetADropTol)} );
+		parameters.insert( {"post_filter_R", parameter_data(1.0e-4, & HYPRE_BoomerAMGSetFilterThresholdR)} );
+
+		parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
+		break;
+	case CLASSICAL_AMG:
+		parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
+		parameters.insert( {"coarsen_type", parameter_data(6, & HYPRE_BoomerAMGSetCoarsenType)} );
+		parameters.insert( {"relax_type", parameter_data(6, & HYPRE_BoomerAMGSetRelaxType)} );
+		parameters.insert( {"max_itter", parameter_data(50, & HYPRE_BoomerAMGSetMaxIter)} );
+		parameters.insert( {"max_amg_levels", parameter_data(40, & HYPRE_BoomerAMGSetMaxLevels)} );
+		parameters.insert( {"solve_tol", parameter_data(1e-10, & HYPRE_BoomerAMGSetTol)} );
+		break;
+	case NONE:
+		break;
+	}
 
 
 }
@@ -93,7 +103,7 @@ void BoomerAMG_Parameters::set_relaxation_order(const Hypre_Chooser solver_preco
 	    }
 	 }
 
-	//Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetGridRelaxPoints , ns_coarse,3);
+	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetGridRelaxPoints , grid_relax_points);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_coarse,3);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_down,1);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_up,2);
@@ -110,6 +120,7 @@ void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_
 	parameter_list.set("SolverOrPrecondition",Hypre_Chooser::Solver);
 	parameter_list.set("SetPreconditioner",false);
 
+	hypre_interface.SetParameters(parameter_list);
 	parameters_obj.set_parameters(hypre_interface,Hypre_Chooser::Solver);
 
 	hypre_interface.Compute()  ;
