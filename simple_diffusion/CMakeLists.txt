@@ -19,6 +19,12 @@ IF (NOT boomerAMG_solver_lib)
 	MESSAGE("*** Could not locate the library libBoomerAMG_solver***")
 ENDIF()
 
+FIND_PATH(boomerAMG_solver_include BoomerAMG_solver.h HINTS ../BoomerAMG_solver/source NO_DEFAULT_PATH)
+
+IF (NOT boomerAMG_solver_include)
+	MESSAGE("*** Could not locate the libBoomerAMG_solver header file ***")
+ENDIF()
+
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 ADD_SUBDIRECTORY(source)
