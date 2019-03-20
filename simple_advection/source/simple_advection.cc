@@ -59,6 +59,12 @@
 
 #include <iostream>
 #include <fstream>
+//
+//
+///////////////////////////////////////////////
+//
+#include "BoomerAMG_solver.h"
+
 
 namespace LA =  dealii::LinearAlgebraTrilinos;
 
@@ -117,11 +123,12 @@ public:
   void run();
 
 private:
+  void precondition(LA::MPI::SparseMatrix & system_matrix, LA::MPI::Vector & right_hand_side);
   void setup_system();
   void assemble_system();
-  //void solve(Vector<double> &solution);
+  void solve(LA::MPI::Vector &solution);
   void refine_grid();
-  //void output_results(const unsigned int cycle) const;
+  void output_results(const unsigned int cycle) const;
 
   MPI_Comm                                  mpi_communicator;
 
@@ -130,14 +137,14 @@ private:
 
   ConditionalOStream                pcout;
 
-
   parallel::distributed::Triangulation<dim>   triangulation;
   const MappingQ1<dim> mapping;
 
   FE_DGQ<dim>     fe;
   DoFHandler<dim> dof_handler;
 
-  dealii::DynamicSparsityPattern      sparsity_pattern;
+  SparsityPattern sparsity_pattern;
+
   LA::MPI::SparseMatrix system_matrix;
 
   LA::MPI::Vector solution;
@@ -153,7 +160,6 @@ private:
                                   CellInfo &info1,
                                   CellInfo &info2);
 };
-
 
 template <int dim>
 AdvectionProblem<dim>::AdvectionProblem()
@@ -171,10 +177,64 @@ AdvectionProblem<dim>::AdvectionProblem()
 
 {}
 
+template <int dim>
+void AdvectionProblem<dim>::precondition(LA::MPI::SparseMatrix & system_matrix, LA::MPI::Vector & right_hand_side)
+{
+	dealii::FullMatrix<double> diagonal_block(4,4);
+
+	LA::MPI::SparseMatrix preconditioner;
+
+	preconditioner.reinit(system_matrix);
+
+	preconditioner = 0.0;
+
+	int i_block_size;
+	if (dim == 2)
+		i_block_size=4;
+	else
+		i_block_size=8;
+
+	const std::pair<int, int>  local_range = system_matrix.local_range();
+
+	const int off_set = local_range.first;
+
+	for (unsigned int i_block =0; i_block<system_matrix.local_size() ;i_block+=i_block_size){
+
+		for (unsigned int i = 0; i<i_block_size ; ++i) {
+
+			for (unsigned int j = 0; j<i_block_size ; ++j) {
+				diagonal_block[i][j] = system_matrix(i+i_block+off_set , j+i_block+off_set);
+			}
+		}
+
+		diagonal_block.gauss_jordan();
+
+		for (unsigned int i = 0; i<i_block_size ; ++i) {
+
+			for (unsigned int j = 0; j<i_block_size ; ++j) {
+				preconditioner.set(i+i_block+off_set , j+i_block+off_set ,diagonal_block[i][j]);
+			}
+		}
+	}
+	//
+	LA::MPI::SparseMatrix store_solution;
+	//
+	store_solution.reinit(system_matrix.trilinos_matrix());
+	//
+	preconditioner.mmult(system_matrix,store_solution);
+	//
+	LA::MPI::Vector rhs_store;
+	rhs_store = right_hand_side;
+	//
+	preconditioner.vmult(right_hand_side,rhs_store);
+}
 
 template <int dim>
 void AdvectionProblem<dim>::setup_system()
 {
+	//
+	dof_handler.distribute_dofs (fe);
+	//
     const IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
     //
     //
@@ -191,16 +251,16 @@ void AdvectionProblem<dim>::setup_system()
       mpi_communicator,
       locally_relevant_dofs);
     //
-    //
+    sparsity_pattern.copy_from(dsp);
     //
     system_matrix.reinit (locally_owned_dofs,
                           locally_owned_dofs,
-						  dsp,
+						  sparsity_pattern,
     					  mpi_communicator);
     //
     //
     solution.reinit(locally_owned_dofs, mpi_communicator);
-    right_hand_side.reinit(locally_owned_dofs, mpi_communicator)
+    right_hand_side.reinit(locally_owned_dofs, mpi_communicator);
 }
 
 
@@ -223,7 +283,7 @@ void AdvectionProblem<dim>::assemble_system()
 
   MeshWorker::DoFInfo<dim> dof_info(dof_handler);
 
-  MeshWorker::Assembler::SystemSimple<SparseMatrix<double>, Vector<double>>
+  MeshWorker::Assembler::SystemSimple<LA::MPI::SparseMatrix, LA::MPI::Vector>
     assembler;
   assembler.initialize(system_matrix, right_hand_side);
 
@@ -373,19 +433,17 @@ void AdvectionProblem<dim>::integrate_face_term(DoFInfo & dinfo1,
     }
 }
 
-/*
 template <int dim>
-void AdvectionProblem<dim>::solve(Vector<double> &solution)
+void AdvectionProblem<dim>::solve(LA::MPI::Vector &solution)
 {
-  SolverControl      solver_control(1000, 1e-12);
-  SolverRichardson<> solver(solver_control);
 
-  PreconditionBlockSSOR<SparseMatrix<double>> preconditioner;
+	precondition(system_matrix, right_hand_side);
 
-  preconditioner.initialize(system_matrix, fe.dofs_per_cell);
+	TrilinosWrappers::BoomerAMG_Parameters AMG_parameters(TrilinosWrappers::BoomerAMG_Parameters::AIR_AMG);
+	TrilinosWrappers::SolverBoomerAMG AMG_solver(AMG_parameters);
 
-  solver.solve(system_matrix, solution, right_hand_side, preconditioner);
-} */
+	AMG_solver.solve(system_matrix, right_hand_side, solution);
+}
 
 
 template <int dim>
@@ -409,37 +467,46 @@ void AdvectionProblem<dim>::refine_grid()
                                    0.3, 0.03);
   triangulation.execute_coarsening_and_refinement ();
 
+}
+
+
+template <int dim>
+void AdvectionProblem<dim>::output_results (const unsigned int cycle) const
+{
+
+  DataOut<dim> data_out;
+  data_out.attach_dof_handler(dof_handler);
+
+
+  data_out.add_data_vector(this->solution, "u");
+
+  Vector<float> subdomain(triangulation.n_active_cells());
+  for (unsigned int i = 0; i < subdomain.size(); ++i)
+    subdomain(i) = triangulation.locally_owned_subdomain();
+  data_out.add_data_vector(subdomain, "subdomain");
+
+  data_out.build_patches();
+
+  const std::string filename =("dg_advection-" +
+				Utilities::int_to_string(triangulation.locally_owned_subdomain(), 4));
+
+  std::ofstream output((filename + ".vtu"));
+  data_out.write_vtu(output);
+
+  if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+    {
+      std::vector<std::string> filenames;
+      for (unsigned int i = 0;
+           i < Utilities::MPI::n_mpi_processes(mpi_communicator);
+           ++i)
+        filenames.push_back("dg_advection-"+ Utilities::int_to_string(i, 4) + ".vtu");
+
+      std::ofstream master_output( ("dg_advection.pvtu") );
+      data_out.write_pvtu_record(master_output, filenames);
+    }
 
 
 }
-
-/*
-template <int dim>
-void AdvectionProblem<dim>::output_results(const unsigned int cycle) const
-{
-  {
-    const std::string filename = "grid-" + std::to_string(cycle) + ".eps";
-    deallog << "Writing grid to <" << filename << ">" << std::endl;
-    std::ofstream eps_output(filename);
-
-    GridOut grid_out;
-    grid_out.write_eps(triangulation, eps_output);
-  }
-
-  {
-    const std::string filename = "sol-" + std::to_string(cycle) + ".gnuplot";
-    deallog << "Writing solution to <" << filename << ">" << std::endl;
-    std::ofstream gnuplot_output(filename);
-
-    DataOut<dim> data_out;
-    data_out.attach_dof_handler(dof_handler);
-    data_out.add_data_vector(solution, "u");
-
-    data_out.build_patches();
-
-    data_out.write_gnuplot(gnuplot_output);
-  }
-} */
 
 
 template <int dim>
@@ -447,38 +514,43 @@ void AdvectionProblem<dim>::run()
 {
   for (unsigned int cycle = 0; cycle < 6; ++cycle)
     {
-      deallog << "Cycle " << cycle << std::endl;
+	  pcout << "Cycle " << cycle << std::endl;
 
       if (cycle == 0)
         {
-          GridGenerator::hyper_cube(triangulation);
+          GridGenerator::subdivided_hyper_cube(triangulation,2);
 
           triangulation.refine_global(3);
+
+          std::cout<<"Set the triangulation"<<std::endl;
         }
       else
         refine_grid();
 
 
-      deallog << "Number of active cells:       "
+      pcout << "Number of active cells:       "
               << triangulation.n_active_cells() << std::endl;
+
+      std::cout<<"Calling setup_system()"<<std::endl;
 
       setup_system();
 
-      deallog << "Number of degrees of freedom: " << dof_handler.n_dofs()
+      pcout << "Number of degrees of freedom: " << dof_handler.n_dofs()
               << std::endl;
 
       assemble_system();
-      //solve(solution);
+      solve(solution);
 
-     // output_results(cycle);
+      output_results(cycle);
     }
 }
 
 
-int main()
+int main(int argc, char *argv[])
 {
   try
     {
+	  Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
       AdvectionProblem<2> dgmethod;
       dgmethod.run();
     }
