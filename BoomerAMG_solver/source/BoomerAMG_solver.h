@@ -20,6 +20,7 @@ class BoomerAMG_Parameters{
 public:
 
 	enum default_configuration_type{AIR_AMG,CLASSICAL_AMG,NONE};
+	default_configuration_type config_selection;
 
 	typedef boost::variant<int (*)(HYPRE_Solver, int),int (*)(HYPRE_Solver, double),int (*)(HYPRE_Solver,double, int),
 			int (*)(HYPRE_Solver, int, int),int (*)(HYPRE_Solver, int*),int (*)(HYPRE_Solver, double*),
@@ -47,7 +48,7 @@ public:
 private:
 
 
-	void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
+	static void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
 
 	class apply_parameter_variant_visitor:
 			public boost::static_visitor<>

@@ -9,11 +9,13 @@ namespace TrilinosWrappers
 
 
 
-BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_selection){
+BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_selection):config_selection(config_selection)
+		{
 
 	switch(config_selection)
 	{
 	case AIR_AMG:
+	{
 		parameters.insert( {"interp_type", parameter_data(100, & HYPRE_BoomerAMGSetInterpType)} );
 		parameters.insert( {"coarsen_type", parameter_data(6, & HYPRE_BoomerAMGSetCoarsenType)} );
 		parameters.insert( {"relax_type", parameter_data(0, & HYPRE_BoomerAMGSetRelaxType)} );
@@ -25,10 +27,15 @@ BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_sel
 		parameters.insert( {"strength_tolC", parameter_data(0.25, & HYPRE_BoomerAMGSetStrongThreshold)} );
 		parameters.insert( {"strength_tolR", parameter_data(0.1, & HYPRE_BoomerAMGSetStrongThresholdR)} );
 		parameters.insert( {"filterA_tol", parameter_data(1.0e-4, & HYPRE_BoomerAMGSetADropTol)} );
-		parameters.insert( {"post_filter_R", parameter_data(1.0e-4, & HYPRE_BoomerAMGSetFilterThresholdR)} );
+		parameters.insert( {"post_filter_R", parameter_data(0.0, & HYPRE_BoomerAMGSetFilterThresholdR)} );
 
 		parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
+
+		std::pair<std::string,std::string> relaxation_order("A","FFF");
+
+		parameters.insert({"relaxation_order", parameter_data( relaxation_order, &set_relaxation_order )} );
 		break;
+	}
 	case CLASSICAL_AMG:
 		parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
 		parameters.insert( {"coarsen_type", parameter_data(6, & HYPRE_BoomerAMGSetCoarsenType)} );
