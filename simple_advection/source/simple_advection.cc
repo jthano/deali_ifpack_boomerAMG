@@ -143,8 +143,6 @@ private:
   FE_DGQ<dim>     fe;
   DoFHandler<dim> dof_handler;
 
-  SparsityPattern sparsity_pattern;
-
   LA::MPI::SparseMatrix system_matrix;
 
   LA::MPI::Vector solution;
@@ -251,11 +249,9 @@ void AdvectionProblem<dim>::setup_system()
       mpi_communicator,
       locally_relevant_dofs);
     //
-    sparsity_pattern.copy_from(dsp);
-    //
     system_matrix.reinit (locally_owned_dofs,
                           locally_owned_dofs,
-						  sparsity_pattern,
+						  dsp,
     					  mpi_communicator);
     //
     //
@@ -512,7 +508,7 @@ void AdvectionProblem<dim>::output_results (const unsigned int cycle) const
 template <int dim>
 void AdvectionProblem<dim>::run()
 {
-  for (unsigned int cycle = 0; cycle < 6; ++cycle)
+  for (unsigned int cycle = 0; cycle < 3; ++cycle)
     {
 	  pcout << "Cycle " << cycle << std::endl;
 
@@ -522,7 +518,6 @@ void AdvectionProblem<dim>::run()
 
           triangulation.refine_global(3);
 
-          std::cout<<"Set the triangulation"<<std::endl;
         }
       else
         refine_grid();
@@ -530,8 +525,6 @@ void AdvectionProblem<dim>::run()
 
       pcout << "Number of active cells:       "
               << triangulation.n_active_cells() << std::endl;
-
-      std::cout<<"Calling setup_system()"<<std::endl;
 
       setup_system();
 
