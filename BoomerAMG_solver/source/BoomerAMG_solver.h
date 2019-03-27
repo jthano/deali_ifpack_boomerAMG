@@ -15,8 +15,36 @@ namespace TrilinosWrappers {
 
 namespace LA =  dealii::LinearAlgebraTrilinos::MPI;
 
+/**
+ * The possible parameters are: <table> <tr>
+ * <td align="center"> interp_type </td>
+ * <td align="left">
+ * The interp_type integer variable sets the interpolation type.
+ * Interpolation types, taken from the hypre documentation, are:
+ * <ul>
+ * <li> 0: classical modified interpolation </li>
+ * <li> 1: LS interpolation (for use with GSMG) </li>
+ * <li> 2: classical modified interpolation for hyperbolic PDEs </li>
+ * <li> 3: direct interpolation (with separation of weights) </li>
+ * <li> 4: multipass interpolation </li>
+ * <li> 5: multipass interpolation (with separation of weights) </li>
+ * <li> 7: extended+i interpolation </li>
+ * <li> 8: standard interpolation </li>
+ * <li> 9: standard interpolation (with separation of weights) </li>
+ * <li> 10: classical block interpolation (for use with nodal systems version only) </li>
+ * <li> 11: classical block interpolation (for use with nodal systems version only)<br/>
+ * with diagonalized diagonal blocks<br/></li>
+ * <li> 12: FF interpolation </li>
+ * <li> 13: FF1 interpolation </li>
+ * <li> 14: extended interpolation </li>
+ * <li> 100: Pointwise interpolation (intended for use with AIR) </li>
+ * </ul>
+ * </td> </tr></table>
+ *
+ * @ingroup TrilinosWrappers
+ * @author Joshua Hanophy, 2019
+ */
 class BoomerAMG_Parameters{
-
 public:
 
 	enum default_configuration_type{AIR_AMG,CLASSICAL_AMG,NONE};
