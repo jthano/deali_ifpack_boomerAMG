@@ -120,7 +120,7 @@ void BoomerAMG_Parameters::set_parameter_value(std::string name, param_value_var
 
 	auto it = parameters.find(name);
 
-	AssertThrow(it!=parameters.end(), ExcMessage("When using set_parameter_value, the parameter must already be present in the parameters map".));
+	AssertThrow(it!=parameters.end(), ExcMessage("When using set_parameter_value, the parameter must already be present in the parameters map."));
 
 	(it->second).value = value;
 }
