@@ -9,8 +9,7 @@ namespace TrilinosWrappers
 
 
 
-BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_selection):config_selection(config_selection)
-		{
+BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_selection){
 
 	switch(config_selection)
 	{
@@ -114,6 +113,39 @@ void BoomerAMG_Parameters::set_relaxation_order(const Hypre_Chooser solver_preco
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_coarse,3);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_down,1);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_up,2);
+
+}
+
+void BoomerAMG_Parameters::set_parameter_value(std::string name, param_value_variant value){
+
+	auto it = parameters.find(name);
+
+	AssertThrow(it!=parameters.end(), ExcMessage("When using set_parameter_value, the parameter must already be present in the parameters map"));
+
+	//set_parameter_value set_parameter;
+
+	//boost::apply_visitor(set_parameter, (param_itter->second).hypre_function, (param_itter->second).value );
+
+	(it->second).value = value;
+}
+
+void BoomerAMG_Parameters::add_parameter(std::string name, parameter_data param_data){
+
+	auto it = parameters.find(name);
+
+	AssertThrow(it==parameters.end(), ExcMessage("When using add_parameter, the parameter must already be present in the parameters map"));
+
+	parameters.insert({name, param_data});
+
+}
+
+void BoomerAMG_Parameters::remove_parameter(std::string name){
+
+	auto it = parameters.find(name);
+
+	AssertThrow(it==parameters.end(), ExcMessage("When using remove_parameter, the parameter must already be present in the parameters map"));
+
+	parameters.erase(it);
 
 }
 
