@@ -120,11 +120,7 @@ void BoomerAMG_Parameters::set_parameter_value(std::string name, param_value_var
 
 	auto it = parameters.find(name);
 
-	AssertThrow(it!=parameters.end(), ExcMessage("When using set_parameter_value, the parameter must already be present in the parameters map"));
-
-	//set_parameter_value set_parameter;
-
-	//boost::apply_visitor(set_parameter, (param_itter->second).hypre_function, (param_itter->second).value );
+	AssertThrow(it!=parameters.end(), ExcMessage("When using set_parameter_value, the parameter must already be present in the parameters map".));
 
 	(it->second).value = value;
 }
@@ -133,7 +129,7 @@ void BoomerAMG_Parameters::add_parameter(std::string name, parameter_data param_
 
 	auto it = parameters.find(name);
 
-	AssertThrow(it==parameters.end(), ExcMessage("When using add_parameter, the parameter must already be present in the parameters map"));
+	AssertThrow(it==parameters.end(), ExcMessage("When using add_parameter, the parameter name should not already exist."));
 
 	parameters.insert({name, param_data});
 
@@ -143,7 +139,7 @@ void BoomerAMG_Parameters::remove_parameter(std::string name){
 
 	auto it = parameters.find(name);
 
-	AssertThrow(it==parameters.end(), ExcMessage("When using remove_parameter, the parameter must already be present in the parameters map"));
+	AssertThrow(it==parameters.end(), ExcMessage("When using remove_parameter, the parameter must already be present in the parameters map."));
 
 	parameters.erase(it);
 
