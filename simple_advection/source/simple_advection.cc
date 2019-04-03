@@ -178,19 +178,19 @@ AdvectionProblem<dim>::AdvectionProblem()
 template <int dim>
 void AdvectionProblem<dim>::precondition(LA::MPI::SparseMatrix & system_matrix, LA::MPI::Vector & right_hand_side)
 {
-	dealii::FullMatrix<double> diagonal_block(4,4);
+	int i_block_size;
+	if (dim == 2)
+		i_block_size=4;
+	else
+		i_block_size=8;
+
+	dealii::FullMatrix<double> diagonal_block(i_block_size,i_block_size);
 
 	LA::MPI::SparseMatrix preconditioner;
 
 	preconditioner.reinit(system_matrix);
 
 	preconditioner = 0.0;
-
-	int i_block_size;
-	if (dim == 2)
-		i_block_size=4;
-	else
-		i_block_size=8;
 
 	const std::pair<int, int>  local_range = system_matrix.local_range();
 
@@ -436,6 +436,8 @@ void AdvectionProblem<dim>::solve(LA::MPI::Vector &solution)
 	precondition(system_matrix, right_hand_side);
 
 	TrilinosWrappers::BoomerAMG_Parameters AMG_parameters(TrilinosWrappers::BoomerAMG_Parameters::AIR_AMG);
+	AMG_parameters.set_parameter_value("distance_R",1.0);
+
 	TrilinosWrappers::SolverBoomerAMG AMG_solver(AMG_parameters);
 
 	AMG_solver.solve(system_matrix, right_hand_side, solution);
@@ -508,15 +510,15 @@ void AdvectionProblem<dim>::output_results (const unsigned int cycle) const
 template <int dim>
 void AdvectionProblem<dim>::run()
 {
-  for (unsigned int cycle = 0; cycle < 3; ++cycle)
+  for (unsigned int cycle = 0; cycle < 4; ++cycle)
     {
 	  pcout << "Cycle " << cycle << std::endl;
 
       if (cycle == 0)
         {
-          GridGenerator::subdivided_hyper_cube(triangulation,2);
+          GridGenerator::subdivided_hyper_cube(triangulation,4);
 
-          triangulation.refine_global(3);
+          triangulation.refine_global(2);
 
         }
       else
@@ -544,7 +546,7 @@ int main(int argc, char *argv[])
   try
     {
 	  Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-      AdvectionProblem<2> dgmethod;
+      AdvectionProblem<3> dgmethod;
       dgmethod.run();
     }
   catch (std::exception &exc)
