@@ -145,6 +145,15 @@ void BoomerAMG_Parameters::remove_parameter(std::string name){
 
 }
 
+template<typename return_type>
+void BoomerAMG_Parameters::return_parameter_value(std::string name){
+
+	return_value_visitor value_visitor;
+
+	return boost::apply_visitor(value_visitor, parameters[name]);
+
+}
+
 void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
 
 	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());

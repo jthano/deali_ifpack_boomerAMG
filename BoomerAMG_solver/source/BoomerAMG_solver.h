@@ -212,6 +212,13 @@ public:
 	 */
 	void remove_parameter(std::string name);
 
+	/**
+	 *
+	 * @param name
+	 */
+	template<typename return_type>
+	void return_parameter_value(std::string name);
+
 private:
 	/**
 	 *
@@ -274,22 +281,24 @@ private:
 		Ifpack_Hypre & Ifpack_obj;
 		const Hypre_Chooser solver_preconditioner_selection;
 	};
-	/*
-	class set_parameter_value:
+
+	class return_value_visitor:
 			public boost::static_visitor<>
 	{
 	public:
-		template<typename T, typename U>
-		void operator()(T & value_to_set, U & value){
-			value_to_set = value;
+		template<typename T>
+		void operator()(T& value){
+			return value;
 		}
-	}; */
-
+	};
 
 };
 
 class SolverBoomerAMG{
 public:
+
+	//using AdditionalData = BoomerAMG_Parameters
+
 	SolverBoomerAMG(BoomerAMG_Parameters & parameters_obj):parameters_obj(parameters_obj){};
 
 	void solve(LA::SparseMatrix & system_matrix,
