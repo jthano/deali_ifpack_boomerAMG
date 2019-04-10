@@ -139,9 +139,8 @@ void BoomerAMG_Parameters::remove_parameter(std::string name){
 
 	auto it = parameters.find(name);
 
-	AssertThrow(it==parameters.end(), ExcMessage("When using remove_parameter, the parameter must already be present in the parameters map."));
-
-	parameters.erase(it);
+	if (! it==parameters.end())
+		parameters.erase(it);
 
 }
 
@@ -150,7 +149,7 @@ void BoomerAMG_Parameters::return_parameter_value(std::string name){
 
 	return_value_visitor value_visitor;
 
-	return boost::apply_visitor(value_visitor, parameters[name]);
+	return boost::apply_visitor(value_visitor, parameters[name].value);
 
 }
 

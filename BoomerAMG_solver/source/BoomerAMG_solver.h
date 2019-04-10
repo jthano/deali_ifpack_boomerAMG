@@ -184,56 +184,65 @@ public:
 		parameter_data(param_value_variant value, std::function<void(const Hypre_Chooser, const parameter_data &, Ifpack_Hypre &)> set_function):value(value),set_function(set_function){};
 	};
 	/**
+	 * Constructor.
 	 *
-	 * @param config_selection
+	 * @param config_selection specifies which type of defualt configuration will be used.
+	 * The default parameter configuration dictates which parameters are used and their values.
+	 * Note that default_configuration_type::NONE can be specified which result in the construction
+	 * of a an empty parameters map which could then be filled with the add_parameter function.
 	 */
 	BoomerAMG_Parameters(default_configuration_type config_selection);
 	/**
+	 * This function can be used to change the value of a parameter in the parameters map that
+	 * already exists. Use the add_parameter function if the parameter does not already exist
 	 *
-	 * @param name
-	 * @param value
+	 * @param name is the string parameter name. Note that the parameter name should already exist
+	 * in the parameters parameter map. Use the add_parameter function to add a new parameters.
+	 * @param value This is the value to assign the parameter found at parameters[name]
 	 */
 	void set_parameter_value(std::string name, param_value_variant value);
 	/**
 	 *
-	 * @param name
-	 * @param param_data
+	 *
+	 * @param name is the string parameter name. Note that the parameter name should not already
+	 * exist. To update the value or a parameter that already exists, use the set_parameter_value
+	 * function
+	 * @param param_data is an instance of the parameter_data struct which contains the parameter
+	 * value and a pointer to the proper set function
 	 */
 	void add_parameter(std::string name, parameter_data param_data);
 
 	/**
+	 * Function to remove a parameter from the parameters parameter map
 	 *
-	 * @param name
+	 * @param name is the string parameter name to remove.
 	 */
 	void remove_parameter(std::string name);
 
 	/**
+	 * Function to return the value of a parameter.
 	 *
-	 * @param name
+	 * @param name is the string parameter name of the parameter whose value is to be returned
 	 */
 	template<typename return_type>
 	void return_parameter_value(std::string name);
 
 private:
 	/**
-	 *
+	 * The parameters map stores parameters as a string name key and then a parameter_data instance value.
 	 */
 	std::map< std::string,parameter_data> parameters;
 	/**
-	 *
-	 * @param solver_preconditioner_selection
-	 * @param param_data
-	 * @param Ifpack_obj
+	 * This is a special set function used to simplify the specification of relaxation orders when using
+	 * AIR amg.
 	 */
 	static void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
 	/**
-	 *
-	 * @param Ifpack_obj
-	 * @param solver_preconditioner_selection
+	 * This function is to be used by the solver or preconditioner class to set
 	 */
 	void set_parameters(Ifpack_Hypre & Ifpack_obj, const Hypre_Chooser solver_preconditioner_selection);
 	/**
-	 *
+	 * This class is used internally to set parameter values
 	 */
 	class apply_parameter_variant_visitor:
 			public boost::static_visitor<>
@@ -282,7 +291,9 @@ private:
 		Ifpack_Hypre & Ifpack_obj;
 		const Hypre_Chooser solver_preconditioner_selection;
 	};
-
+	/**
+	 * This class is used internally to return parameter values
+	 */
 	class return_value_visitor:
 			public boost::static_visitor<>
 	{
@@ -298,7 +309,11 @@ private:
 class SolverBoomerAMG{
 public:
 
-	//using AdditionalData = BoomerAMG_Parameters
+	/**
+	 * Constructor.
+	 *
+	 * @param parameters_obj
+	 */
 
 	SolverBoomerAMG(BoomerAMG_Parameters & parameters_obj):parameters_obj(parameters_obj){};
 
