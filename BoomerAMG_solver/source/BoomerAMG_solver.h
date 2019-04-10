@@ -141,6 +141,7 @@ namespace LA =  dealii::LinearAlgebraTrilinos::MPI;
  * @author Joshua Hanophy, 2019
  */
 class BoomerAMG_Parameters{
+friend class SolverBoomerAMG;
 public:
 
 	/**
@@ -189,12 +190,6 @@ public:
 	BoomerAMG_Parameters(default_configuration_type config_selection);
 	/**
 	 *
-	 * @param Ifpack_obj
-	 * @param solver_preconditioner_selection
-	 */
-	void set_parameters(Ifpack_Hypre & Ifpack_obj, const Hypre_Chooser solver_preconditioner_selection);
-	/**
-	 *
 	 * @param name
 	 * @param value
 	 */
@@ -231,6 +226,12 @@ private:
 	 * @param Ifpack_obj
 	 */
 	static void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
+	/**
+	 *
+	 * @param Ifpack_obj
+	 * @param solver_preconditioner_selection
+	 */
+	void set_parameters(Ifpack_Hypre & Ifpack_obj, const Hypre_Chooser solver_preconditioner_selection);
 	/**
 	 *
 	 */
