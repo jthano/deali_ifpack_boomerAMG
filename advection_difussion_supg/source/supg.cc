@@ -18,45 +18,58 @@
  *          Guido Kanschat, 2011
  */
 
-
-
-#include <deal.II/grid/tria.h>
-#include <deal.II/grid/grid_tools.h>
-#include <deal.II/dofs/dof_handler.h>
-#include <deal.II/grid/grid_generator.h>
-
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
-#include <deal.II/dofs/dof_accessor.h>
-
-#include <deal.II/fe/fe_q.h>
-
-#include <deal.II/dofs/dof_tools.h>
-
-#include <deal.II/fe/fe_values.h>
 #include <deal.II/base/quadrature_lib.h>
-
 #include <deal.II/base/function.h>
-#include <deal.II/numerics/vector_tools.h>
-#include <deal.II/numerics/matrix_tools.h>
+#include <deal.II/base/timer.h>
+
+#include <deal.II/lac/generic_linear_algebra.h>
+
+namespace LA
+{
+#if defined(DEAL_II_WITH_PETSC) && \
+  !(defined(DEAL_II_WITH_TRILINOS) && defined(FORCE_USE_OF_TRILINOS))
+  using namespace dealii::LinearAlgebraPETSc;
+#  define USE_PETSC_LA
+#elif defined(DEAL_II_WITH_TRILINOS)
+  using namespace dealii::LinearAlgebraTrilinos;
+#else
+#  error DEAL_II_WITH_PETSC or DEAL_II_WITH_TRILINOS required
+#endif
+} // namespace LA
 
 #include <deal.II/lac/vector.h>
 #include <deal.II/lac/full_matrix.h>
-#include <deal.II/lac/sparse_matrix.h>
+#include <deal.II/lac/solver_cg.h>
+#include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
-//#include <deal.II/lac/solver_cg.h>
-//#include <deal.II/lac/precondition.h>
-#include <deal.II/lac/sparse_direct.h>
 
-
+#include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/tria_accessor.h>
+#include <deal.II/grid/tria_iterator.h>
+#include <deal.II/dofs/dof_handler.h>
+#include <deal.II/dofs/dof_accessor.h>
+#include <deal.II/dofs/dof_tools.h>
+#include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_q.h>
+#include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/data_out.h>
+#include <deal.II/numerics/error_estimator.h>
+#include <deal.II/numerics/matrix_tools.h>
+
+#include <deal.II/base/utilities.h>
+#include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/index_set.h>
+#include <deal.II/lac/sparsity_tools.h>
+#include <deal.II/distributed/tria.h>
+#include <deal.II/distributed/grid_refinement.h>
+
+
 #include <fstream>
 #include <iostream>
 
 #include <math.h>
 
 using namespace dealii;
-
 
 
 class Step3
@@ -74,21 +87,41 @@ private:
   void solve();
   void output_results() const;
 
-  Triangulation<2> triangulation;
+  MPI_Comm mpi_communicator;
+  parallel::distributed::Triangulation<2> triangulation;
+
   FE_Q<2>          fe;
   DoFHandler<2>    dof_handler;
 
-  SparsityPattern      sparsity_pattern;
-  SparseMatrix<double> system_matrix;
+  IndexSet locally_owned_dofs;
+  IndexSet locally_relevant_dofs;
 
-  Vector<double> solution;
-  Vector<double> system_rhs;
+  SparsityPattern      sparsity_pattern;
+
+  LA::MPI::SparseMatrix system_matrix;
+  LA::MPI::Vector       locally_relevant_solution;
+  LA::MPI::Vector       system_rhs;
+
+  ConditionalOStream pcout;
+  TimerOutput        computing_timer;
+
 };
 
 
 Step3::Step3()
-  : fe(1)
-  , dof_handler(triangulation)
+: mpi_communicator(MPI_COMM_WORLD)
+, triangulation(mpi_communicator,
+                typename Triangulation<2>::MeshSmoothing(
+                  Triangulation<2>::smoothing_on_refinement |
+                  Triangulation<2>::smoothing_on_coarsening))
+, dof_handler(triangulation)
+, fe(1)
+, pcout(std::cout,
+        (Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
+, computing_timer(mpi_communicator,
+                  pcout,
+                  TimerOutput::summary,
+                  TimerOutput::wall_times)
 {}
 
 
@@ -98,7 +131,7 @@ void Step3::make_grid()
   GridGenerator::hyper_cube(triangulation, -1, 1);
   triangulation.refine_global(5);
 
-  GridTools::distort_random(0.3, triangulation);
+  //GridTools::distort_random(0.3, triangulation);
 
   std::cout << "Number of active cells: " << triangulation.n_active_cells()
             << std::endl;
@@ -109,6 +142,7 @@ void Step3::make_grid()
 
 void Step3::setup_system()
 {
+	/*
   dof_handler.distribute_dofs(fe);
   std::cout << "Number of degrees of freedom: " << dof_handler.n_dofs()
             << std::endl;
@@ -121,6 +155,44 @@ void Step3::setup_system()
 
   solution.reinit(dof_handler.n_dofs());
   system_rhs.reinit(dof_handler.n_dofs());
+  */
+
+  TimerOutput::Scope t(computing_timer, "setup");
+
+  dof_handler.distribute_dofs(fe);
+
+  locally_owned_dofs = dof_handler.locally_owned_dofs();
+  DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+
+  locally_relevant_solution.reinit(locally_owned_dofs,
+                                   locally_relevant_dofs,
+                                   mpi_communicator);
+  system_rhs.reinit(locally_owned_dofs, mpi_communicator);
+/*
+  constraints.clear();
+  constraints.reinit(locally_relevant_dofs);
+  DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           0,
+                                           Functions::ZeroFunction<dim>(),
+                                           constraints);
+  constraints.close();
+*/
+  DynamicSparsityPattern dsp(locally_relevant_dofs);
+
+  DoFTools::make_sparsity_pattern(dof_handler, dsp);
+  SparsityTools::distribute_sparsity_pattern(
+    dsp,
+    dof_handler.n_locally_owned_dofs_per_processor(),
+    mpi_communicator,
+    locally_relevant_dofs);
+
+  system_matrix.reinit(locally_owned_dofs,
+                       locally_owned_dofs,
+                       dsp,
+                       mpi_communicator);
+
+
 }
 
 
@@ -154,81 +226,84 @@ void Step3::assemble_system()
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
-      fe_values.reinit(cell);
-      //
-      Point<2> zero = fe_values.get_mapping().transform_unit_to_real_cell(cell, Point<2>(0.0,0.0));
-      Point<2> n_xi = fe_values.get_mapping().transform_unit_to_real_cell(cell, Point<2>(1.0,0.0));
-      n_xi -= zero;
-      n_xi /= n_xi.norm();
-      //
-      Point<2> n_etta = fe_values.get_mapping().transform_unit_to_real_cell(cell, Point<2>(0.0,1.0));
-      n_etta -= zero;
-      n_etta /= n_etta.norm();
-      //
-      cell_matrix = 0;
-      cell_rhs    = 0;
-      //
-      // Compute P(w)tau
-      //
-      Point<2> x0,x1,x2,x3;
-      //
-      x0 = cell->vertex(0);
-      x1 = cell->vertex(1);
-      x2 = cell->vertex(2);
-      x3 = cell->vertex(3);
-      //
-      double h_xi = ( x3(0) + x1(0) - x2(0) - x0(0) )/2.0;
-      double h_etta = ( x3(1) + x2(1) - x0(1) - x1(1) )/2.0;
-      //
-      double a_xi = velocity*n_xi;
-      double a_etta = velocity*n_etta;
-      //
-      double Pe_xi = a_xi*h_xi/2.0/nu;
-      double Pe_etta = a_etta*h_etta/2.0/nu;
-      //
-      double etta_bar = 1.0/tanh(Pe_xi) - 1.0/Pe_xi;
-      double xi_bar = 1.0/tanh(Pe_etta) - 1.0/Pe_etta;
-      //
-      double tau = (etta_bar*a_etta*h_etta + xi_bar*a_xi*h_xi)/2.0/pow(velocity.norm(),2);
-      //
-
-      //
-      for (unsigned int q_index = 0; q_index < n_q_points; ++q_index)
+      if (cell->is_locally_owned())
         {
-          for (unsigned int i = 0; i < dofs_per_cell; ++i)
-            for (unsigned int j = 0; j < dofs_per_cell; ++j){
-              cell_matrix(i, j) +=
-                (fe_values.shape_grad(i, q_index) *
-                 fe_values.shape_grad(j, q_index) *
-                 fe_values.JxW(q_index));
+		  fe_values.reinit(cell);
+		  //
+		  Point<2> zero = fe_values.get_mapping().transform_unit_to_real_cell(cell, Point<2>(0.0,0.0));
+		  Point<2> n_xi = fe_values.get_mapping().transform_unit_to_real_cell(cell, Point<2>(1.0,0.0));
+		  n_xi -= zero;
+		  n_xi /= n_xi.norm();
+		  //
+		  Point<2> n_etta = fe_values.get_mapping().transform_unit_to_real_cell(cell, Point<2>(0.0,1.0));
+		  n_etta -= zero;
+		  n_etta /= n_etta.norm();
+		  //
+		  cell_matrix = 0;
+		  cell_rhs    = 0;
+		  //
+		  // Compute P(w)tau
+		  //
+		  Point<2> x0,x1,x2,x3;
+		  //
+		  x0 = cell->vertex(0);
+		  x1 = cell->vertex(1);
+		  x2 = cell->vertex(2);
+		  x3 = cell->vertex(3);
+		  //
+		  double h_xi = ( x3(0) + x1(0) - x2(0) - x0(0) )/2.0;
+		  double h_etta = ( x3(1) + x2(1) - x0(1) - x1(1) )/2.0;
+		  //
+		  double a_xi = velocity*n_xi;
+		  double a_etta = velocity*n_etta;
+		  //
+		  double Pe_xi = a_xi*h_xi/2.0/nu;
+		  double Pe_etta = a_etta*h_etta/2.0/nu;
+		  //
+		  double etta_bar = 1.0/tanh(Pe_xi) - 1.0/Pe_xi;
+		  double xi_bar = 1.0/tanh(Pe_etta) - 1.0/Pe_etta;
+		  //
+		  double tau = (etta_bar*a_etta*h_etta + xi_bar*a_xi*h_xi)/2.0/pow(velocity.norm(),2);
+		  //
 
-              cell_matrix(i, j) +=
-                (velocity * fe_values.shape_grad(i, q_index) *
-                 fe_values.shape_value(j, q_index) *
-                 fe_values.JxW(q_index));
+		  //
+		  for (unsigned int q_index = 0; q_index < n_q_points; ++q_index)
+			{
+			  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+				for (unsigned int j = 0; j < dofs_per_cell; ++j){
+				  cell_matrix(i, j) +=
+					(fe_values.shape_grad(i, q_index) *
+					 fe_values.shape_grad(j, q_index) *
+					 fe_values.JxW(q_index));
 
-              cell_matrix(i,j) += (fe_values.shape_grad(i,q_index)*
-            		  velocity)*tau*(fe_values.shape_grad(j,q_index)*velocity) *
-					  fe_values.JxW(q_index);
+				  cell_matrix(i, j) +=
+					(velocity * fe_values.shape_grad(i, q_index) *
+					 fe_values.shape_value(j, q_index) *
+					 fe_values.JxW(q_index));
 
-            }
-          for (unsigned int i = 0; i < dofs_per_cell; ++i)
-          {
-            cell_rhs(i) += (fe_values.shape_value(i, q_index) *
-                            1.0 * fe_values.JxW(q_index));
-            cell_rhs(i) += (fe_values.shape_grad(i,q_index)*velocity)*tau*fe_values.JxW(q_index);
-          }
+				  cell_matrix(i,j) += (fe_values.shape_grad(i,q_index)*
+						  velocity)*tau*(fe_values.shape_grad(j,q_index)*velocity) *
+						  fe_values.JxW(q_index);
+
+				}
+			  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+			  {
+				cell_rhs(i) += (fe_values.shape_value(i, q_index) *
+								1.0 * fe_values.JxW(q_index));
+				cell_rhs(i) += (fe_values.shape_grad(i,q_index)*velocity)*tau*fe_values.JxW(q_index);
+			  }
+			}
+		  cell->get_dof_indices(local_dof_indices);
+
+		  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+			for (unsigned int j = 0; j < dofs_per_cell; ++j)
+			  system_matrix.add(local_dof_indices[i],
+								local_dof_indices[j],
+								cell_matrix(i, j));
+
+		  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+			system_rhs(local_dof_indices[i]) += cell_rhs(i);
         }
-      cell->get_dof_indices(local_dof_indices);
-
-      for (unsigned int i = 0; i < dofs_per_cell; ++i)
-        for (unsigned int j = 0; j < dofs_per_cell; ++j)
-          system_matrix.add(local_dof_indices[i],
-                            local_dof_indices[j],
-                            cell_matrix(i, j));
-
-      for (unsigned int i = 0; i < dofs_per_cell; ++i)
-        system_rhs(local_dof_indices[i]) += cell_rhs(i);
     }
 
 
@@ -239,7 +314,7 @@ void Step3::assemble_system()
                                            boundary_values);
   MatrixTools::apply_boundary_values(boundary_values,
                                      system_matrix,
-                                     solution,
+									 locally_relevant_solution,
                                      system_rhs);
 }
 
@@ -247,16 +322,34 @@ void Step3::assemble_system()
 
 void Step3::solve()
 {
-//  SolverControl solver_control(1000, 1e-12);
-//  SolverCG<> solver(solver_control);
+    TimerOutput::Scope t(computing_timer, "solve");
 
-//  solver.solve(system_matrix, solution, system_rhs, PreconditionIdentity());
+    SolverControl solver_control(dof_handler.n_dofs(), 1e-12);
 
-	SparseDirectUMFPACK solver;
+#ifdef USE_PETSC_LA
+    LA::SolverCG solver(solver_control, mpi_communicator);
+#else
+    LA::SolverCG solver(solver_control);
+#endif
 
-	solver.initialize(system_matrix);
+    LA::MPI::PreconditionAMG preconditioner;
 
-	solver.solve(system_rhs);
+    LA::MPI::PreconditionAMG::AdditionalData data;
+
+#ifdef USE_PETSC_LA
+    data.symmetric_operator = true;
+#else
+    /* Trilinos defaults are good */
+#endif
+    preconditioner.initialize(system_matrix, data);
+
+    solver.solve(system_matrix,
+    		locally_relevant_solution,
+                 system_rhs,
+                 preconditioner);
+
+    pcout << "   Solved in " << solver_control.last_step() << " iterations."
+          << std::endl;
 
 }
 
@@ -285,13 +378,15 @@ void Step3::run()
   setup_system();
   assemble_system();
   solve();
-  output_results();
+ // output_results();
 }
 
 
 
-int main()
+int main(int argc, char *argv[])
 {
+  Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+
   deallog.depth_console(2);
 
   Step3 laplace_problem;
