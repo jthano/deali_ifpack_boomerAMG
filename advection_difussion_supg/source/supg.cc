@@ -63,6 +63,7 @@ namespace LA
 #include <deal.II/distributed/tria.h>
 #include <deal.II/distributed/grid_refinement.h>
 
+#include "BoomerAMG_solver.h"
 
 #include <fstream>
 #include <iostream>
@@ -96,7 +97,7 @@ private:
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
 
-  SparsityPattern      sparsity_pattern;
+  AffineConstraints<double> constraints;
 
   LA::MPI::SparseMatrix system_matrix;
   LA::MPI::Vector       locally_relevant_solution;
@@ -142,55 +143,40 @@ void Step3::make_grid()
 
 void Step3::setup_system()
 {
-	/*
-  dof_handler.distribute_dofs(fe);
-  std::cout << "Number of degrees of freedom: " << dof_handler.n_dofs()
-            << std::endl;
+    TimerOutput::Scope t(computing_timer, "setup");
 
-  DynamicSparsityPattern dsp(dof_handler.n_dofs());
-  DoFTools::make_sparsity_pattern(dof_handler, dsp);
-  sparsity_pattern.copy_from(dsp);
+    dof_handler.distribute_dofs(fe);
 
-  system_matrix.reinit(sparsity_pattern);
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
 
-  solution.reinit(dof_handler.n_dofs());
-  system_rhs.reinit(dof_handler.n_dofs());
-  */
+    locally_relevant_solution.reinit(locally_owned_dofs,
+                                     locally_relevant_dofs,
+                                     mpi_communicator);
+    system_rhs.reinit(locally_owned_dofs, mpi_communicator);
 
-  TimerOutput::Scope t(computing_timer, "setup");
+    constraints.clear();
+    constraints.reinit(locally_relevant_dofs);
+   // DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             0,
+                                             Functions::ZeroFunction<2>(),
+                                             constraints);
+    constraints.close();
 
-  dof_handler.distribute_dofs(fe);
+    DynamicSparsityPattern dsp(locally_relevant_dofs);
 
-  locally_owned_dofs = dof_handler.locally_owned_dofs();
-  DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+    DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false);
+    SparsityTools::distribute_sparsity_pattern(
+      dsp,
+      dof_handler.n_locally_owned_dofs_per_processor(),
+      mpi_communicator,
+      locally_relevant_dofs);
 
-  locally_relevant_solution.reinit(locally_owned_dofs,
-                                   locally_relevant_dofs,
-                                   mpi_communicator);
-  system_rhs.reinit(locally_owned_dofs, mpi_communicator);
-/*
-  constraints.clear();
-  constraints.reinit(locally_relevant_dofs);
-  DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           0,
-                                           Functions::ZeroFunction<dim>(),
-                                           constraints);
-  constraints.close();
-*/
-  DynamicSparsityPattern dsp(locally_relevant_dofs);
-
-  DoFTools::make_sparsity_pattern(dof_handler, dsp);
-  SparsityTools::distribute_sparsity_pattern(
-    dsp,
-    dof_handler.n_locally_owned_dofs_per_processor(),
-    mpi_communicator,
-    locally_relevant_dofs);
-
-  system_matrix.reinit(locally_owned_dofs,
-                       locally_owned_dofs,
-                       dsp,
-                       mpi_communicator);
+    system_matrix.reinit(locally_owned_dofs,
+                         locally_owned_dofs,
+                         dsp,
+                         mpi_communicator);
 
 
 }
@@ -295,27 +281,18 @@ void Step3::assemble_system()
 			}
 		  cell->get_dof_indices(local_dof_indices);
 
-		  for (unsigned int i = 0; i < dofs_per_cell; ++i)
-			for (unsigned int j = 0; j < dofs_per_cell; ++j)
-			  system_matrix.add(local_dof_indices[i],
-								local_dof_indices[j],
-								cell_matrix(i, j));
-
-		  for (unsigned int i = 0; i < dofs_per_cell; ++i)
-			system_rhs(local_dof_indices[i]) += cell_rhs(i);
+          cell->get_dof_indices(local_dof_indices);
+          constraints.distribute_local_to_global(cell_matrix,
+                                                 cell_rhs,
+                                                 local_dof_indices,
+                                                 system_matrix,
+                                                 system_rhs);
         }
     }
 
+  system_matrix.compress(VectorOperation::add);
+  system_rhs.compress(VectorOperation::add);
 
-  std::map<types::global_dof_index, double> boundary_values;
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           0,
-                                           Functions::ZeroFunction<2>(),
-                                           boundary_values);
-  MatrixTools::apply_boundary_values(boundary_values,
-                                     system_matrix,
-									 locally_relevant_solution,
-                                     system_rhs);
 }
 
 
@@ -324,32 +301,19 @@ void Step3::solve()
 {
     TimerOutput::Scope t(computing_timer, "solve");
 
-    SolverControl solver_control(dof_handler.n_dofs(), 1e-12);
+    LA::MPI::Vector    completely_distributed_solution(locally_owned_dofs,
+                                                    mpi_communicator);
 
-#ifdef USE_PETSC_LA
-    LA::SolverCG solver(solver_control, mpi_communicator);
-#else
-    LA::SolverCG solver(solver_control);
-#endif
+	TrilinosWrappers::BoomerAMG_Parameters AMG_parameters(TrilinosWrappers::BoomerAMG_Parameters::AIR_AMG);
+	//AMG_parameters.set_parameter_value("distance_R",1.0);
 
-    LA::MPI::PreconditionAMG preconditioner;
+	TrilinosWrappers::SolverBoomerAMG AMG_solver(AMG_parameters);
 
-    LA::MPI::PreconditionAMG::AdditionalData data;
+	AMG_solver.solve(system_matrix, system_rhs, completely_distributed_solution);
 
-#ifdef USE_PETSC_LA
-    data.symmetric_operator = true;
-#else
-    /* Trilinos defaults are good */
-#endif
-    preconditioner.initialize(system_matrix, data);
+    constraints.distribute(completely_distributed_solution);
 
-    solver.solve(system_matrix,
-    		locally_relevant_solution,
-                 system_rhs,
-                 preconditioner);
-
-    pcout << "   Solved in " << solver_control.last_step() << " iterations."
-          << std::endl;
+    locally_relevant_solution = completely_distributed_solution;
 
 }
 
@@ -357,16 +321,38 @@ void Step3::solve()
 
 void Step3::output_results() const
 {
-  DataOut<2> data_out;
-  data_out.attach_dof_handler(dof_handler);
-  data_out.add_data_vector(system_rhs, "solution");
-  data_out.build_patches();
+	int cycle=1;
 
-  std::ofstream outputgpl("solution3.gpl");
-  data_out.write_gnuplot(outputgpl);
+    DataOut<2> data_out;
+    data_out.attach_dof_handler(dof_handler);
+    data_out.add_data_vector(locally_relevant_solution, "u");
 
-  std::ofstream output("solution3.vtk");
-  data_out.write_vtk(output);
+    Vector<float> subdomain(triangulation.n_active_cells());
+    for (unsigned int i = 0; i < subdomain.size(); ++i)
+      subdomain(i) = triangulation.locally_owned_subdomain();
+    data_out.add_data_vector(subdomain, "subdomain");
+
+    data_out.build_patches();
+
+    const std::string filename =
+      ("solution-" + Utilities::int_to_string(cycle, 2) + "." +
+       Utilities::int_to_string(triangulation.locally_owned_subdomain(), 4));
+    std::ofstream output(filename + ".vtu");
+    data_out.write_vtu(output);
+
+    if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+      {
+        std::vector<std::string> filenames;
+        for (unsigned int i = 0;
+             i < Utilities::MPI::n_mpi_processes(mpi_communicator);
+             ++i)
+          filenames.push_back("solution-" + Utilities::int_to_string(cycle, 2) +
+                              "." + Utilities::int_to_string(i, 4) + ".vtu");
+
+        std::ofstream master_output(
+          "solution-" + Utilities::int_to_string(cycle, 2) + ".pvtu");
+        data_out.write_pvtu_record(master_output, filenames);
+      }
 
 }
 
@@ -378,7 +364,7 @@ void Step3::run()
   setup_system();
   assemble_system();
   solve();
- // output_results();
+  output_results();
 }
 
 
