@@ -6,9 +6,6 @@ DEAL_II_NAMESPACE_OPEN
 namespace TrilinosWrappers
 {
 
-
-
-
 BoomerAMG_Parameters::BoomerAMG_Parameters(default_configuration_type config_selection){
 
 	switch(config_selection)
