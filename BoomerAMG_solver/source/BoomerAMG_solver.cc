@@ -136,7 +136,7 @@ void BoomerAMG_Parameters::remove_parameter(std::string name){
 
 	auto it = parameters.find(name);
 
-	if (! it==parameters.end())
+	if (it!=parameters.end())
 		parameters.erase(it);
 
 }
