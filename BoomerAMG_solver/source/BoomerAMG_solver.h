@@ -142,6 +142,7 @@ namespace LA =  dealii::LinearAlgebraTrilinos::MPI;
  */
 class BoomerAMG_Parameters{
 friend class SolverBoomerAMG;
+friend class BoomerAMG_PreconditionedSolver;
 public:
 
 	/**
@@ -360,6 +361,34 @@ private:
 	BoomerAMG_Parameters & parameters_obj;
 
 };
+
+class BoomerAMG_PreconditionedSolver{
+public:
+
+	/**
+	 * Constructor.
+	 *
+	 * @param parameters_obj
+	 */
+
+    struct AdditionalData
+    {
+    	// Solver params can go here
+    };
+
+    BoomerAMG_PreconditionedSolver(BoomerAMG_Parameters & parameters_obj, Hypre_Solver solver_selection=Hypre_Solver::PCG);
+
+	void solve(LA::SparseMatrix & system_matrix,
+			   LA::Vector & right_hand_side,
+			   LA::Vector &solution);
+
+private:
+	BoomerAMG_Parameters & parameters_obj;
+
+	Hypre_Solver solver_selection;
+
+};
+
 
 } // Close namespace TrilinosWrappers
 DEAL_II_NAMESPACE_CLOSE

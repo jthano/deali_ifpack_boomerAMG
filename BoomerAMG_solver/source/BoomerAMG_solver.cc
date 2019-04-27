@@ -171,6 +171,38 @@ void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_
 
 }
 
+BoomerAMG_PreconditionedSolver::BoomerAMG_PreconditionedSolver(BoomerAMG_Parameters & parameters_obj, Hypre_Solver solver_selection/*=Hypre_Solver::PCG*/)
+:parameters_obj(parameters_obj),solver_selection(solver_selection)
+{
+	parameters_obj.set_parameter_value("solve_tol",0.0);
+	parameters_obj.set_parameter_value("max_itter",1);
+	parameters_obj.set_parameter_value("hypre_print_level",1);
+}
+
+void BoomerAMG_PreconditionedSolver::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
+
+	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());
+	Ifpack_Hypre hypre_interface( sys_matrix_pt );
+
+	Teuchos :: ParameterList parameter_list;
+	parameter_list.set("Preconditioner",Hypre_Solver::BoomerAMG);
+	parameter_list.set("Solver",solver_selection);
+	parameter_list.set("SolverOrPrecondition",Hypre_Chooser::Solver);
+	parameter_list.set("SetPreconditioner",true);
+
+	hypre_interface.SetParameters(parameter_list);
+	parameters_obj.set_parameters(hypre_interface,Hypre_Chooser::Preconditioner);
+
+
+	hypre_interface.Initialize();
+
+	hypre_interface.Compute()  ;
+
+	Epetra_FEVector & ref_soln = solution.trilinos_vector();
+
+	int status = hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+
+}
 
 }
 DEAL_II_NAMESPACE_CLOSE
