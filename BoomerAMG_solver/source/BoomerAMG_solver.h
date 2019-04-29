@@ -15,6 +15,181 @@ namespace TrilinosWrappers {
 
 namespace LA =  dealii::LinearAlgebraTrilinos::MPI;
 
+class ifpackHypreSolverPrecondParameters{
+public:
+	/**
+	 * This type is meant to be used for a pointer to a hypre set function. This is simply an alias for a
+	 * boost variant type. Note the types in the boos variant contianer are those function pointer types
+	 * supported by this interface.
+	 */
+	typedef boost::variant<int (*)(HYPRE_Solver, int),int (*)(HYPRE_Solver, double),int (*)(HYPRE_Solver,double, int),
+			int (*)(HYPRE_Solver, int, int),int (*)(HYPRE_Solver, int*),int (*)(HYPRE_Solver, double*),
+			int (*)(HYPRE_Solver, int**),std::nullptr_t> hypre_function_variant;
+	/**
+	 * This type is meant to be used for a parameter value. This is simply an alias for a boost variant type.
+	 */
+	typedef boost::variant<int,double,int*,int**,std::pair<double,int>, std::pair<int, int>,
+            std::pair<std::string,std::string>> param_value_variant;
+	/**
+	 * This struct holds the data required for a single parameter. The required data is a parameter value and a set function.
+	 * There are two possibilities for a set function. A pointer to a hypre set function defined in the hypre library can
+	 * used and will be stored as hypre_function. Or if a custom set function is desired in place of directly using the predfined
+	 * hypre set functions, a pointer to a custom set function is stored as set_function. Note that either set_function or
+	 * hypre_function shoudl be a nullptr.
+	 */
+	struct parameter_data{
+		/**
+		 * value stores the value of the parameter
+		 */
+		param_value_variant value;
+		/**
+		 * hypre_function stores a pointer to the hypre set function to be used to set the parameter value. Note is this is used
+		 * then hypre_function should be equal to a nullptr
+		 */
+		hypre_function_variant hypre_function=nullptr;
+		/**
+		 * set_function stores a pointer to a custom set function. This can be used if simply setting a parameter value with the
+		 * set functions predifined in the hypre library is not sufficient. If this is used, hypre_function should be equal to nullptr
+		 */
+		std::function<void(const Hypre_Chooser, const parameter_data &, Ifpack_Hypre &)> set_function=nullptr;
+		/**
+		 * Constructor.
+		 *
+		 * @param value is the value of the parameter
+		 * @param hypre_function is a pointer to the hypre set function defined in the hypre library
+		 */
+		parameter_data(param_value_variant value, hypre_function_variant hypre_function):value(value),hypre_function(hypre_function){};
+		/**
+		 * Constructor.
+		 *
+		 * @param value is the value of the parameter
+		 * @param set_function is a pointer to a custom set function
+		 */
+		parameter_data(param_value_variant value, std::function<void(const Hypre_Chooser, const parameter_data &, Ifpack_Hypre &)> set_function):value(value),set_function(set_function){};
+	};
+
+
+	ifpackHypreSolverPrecondParameters(Hypre_Chooser solver_preconditioner_selection):solver_preconditioner_selection(solver_preconditioner_selection){};
+
+	/**
+	 * This function can be used to change the value of a parameter in the parameters map that
+	 * already exists. Use the add_parameter function if the parameter does not already exist
+	 *
+	 * @param name is the string parameter name. Note that the parameter name should already exist
+	 * in the parameters parameter map. Use the add_parameter function to add a new parameters.
+	 * @param value This is the value to assign the parameter found at parameters[name]
+	 */
+	void set_parameter_value(std::string name, param_value_variant value);
+	/**
+	 *
+	 *
+	 * @param name is the string parameter name. Note that the parameter name should not already
+	 * exist. To update the value or a parameter that already exists, use the set_parameter_value
+	 * function
+	 * @param param_data is an instance of the parameter_data struct which contains the parameter
+	 * value and a pointer to the proper set function
+	 */
+	void add_parameter(std::string name, parameter_data param_data);
+
+	/**
+	 * Function to remove a parameter from the parameters parameter map
+	 *
+	 * @param name is the string parameter name to remove.
+	 */
+	void remove_parameter(std::string name);
+
+	/**
+	 * Function to return the value of a parameter.
+	 *
+	 * @param name is the string parameter name of the parameter whose value is to be returned
+	 */
+	template<typename return_type>
+	void return_parameter_value(std::string name);
+	/**
+	 * This function is to be used by the solver or preconditioner class to set
+	 */
+	void set_parameters(Ifpack_Hypre & Ifpack_obj);
+	/**
+	 * This is a special set function used to simplify the specification of relaxation orders when using
+	 * AIR amg.
+	 */
+	static void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
+
+private:
+
+	const Hypre_Chooser solver_preconditioner_selection;
+
+	/**
+	 * The parameters map stores parameters as a string name key and then a parameter_data instance value.
+	 */
+	std::map< std::string,parameter_data> parameters;
+	/**
+	 * This class is used internally to set parameter values
+	 */
+	class apply_parameter_variant_visitor:
+			public boost::static_visitor<>
+	{
+	public:
+		apply_parameter_variant_visitor(Ifpack_Hypre & Ifpack_obj, const Hypre_Chooser solver_preconditioner_selection )
+		:Ifpack_obj(Ifpack_obj),solver_preconditioner_selection(solver_preconditioner_selection){};
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, int) & , int & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value);
+		}
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, double) & , double & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value);
+		}
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, double, int) & , std::pair<double,int> & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value.first,value.second);
+		}
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, int, int) & , std::pair<int,int> & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value.first,value.second);
+		}
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, int*) & , int* & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value);
+		}
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, double*) & , double* & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value);
+		}
+
+		void operator()( int (* hypre_set_func)(HYPRE_Solver, int**) & , int** & value){
+			Ifpack_obj.SetParameter(solver_preconditioner_selection,hypre_set_func,value);
+		}
+
+		template <typename T, typename U>
+		void operator()(T & func, U & value){
+			(void) func;
+			(void) value;
+
+			AssertThrow(false, ExcMessage("When setting a parameter, the hypre set function prototype\nshould match the type of the parameter value given"));
+		}
+
+	private:
+		Ifpack_Hypre & Ifpack_obj;
+		const Hypre_Chooser solver_preconditioner_selection;
+	};
+	/**
+	 * This class is used internally to return parameter values
+	 */
+	class return_value_visitor:
+			public boost::static_visitor<>
+	{
+	public:
+		template<typename T>
+		void operator()(T& value){
+			return value;
+		}
+	};
+
+
+};
+
+
 /**
  * The possible parameters are: <table> <tr>
  * <td align="center"> interp_type </td>
@@ -339,13 +514,28 @@ private:
 class SolverBoomerAMG{
 public:
 
+	enum AMG_type {
+		/**
+		 * Load default parameters consistent with Classical AMG
+		 */
+		CLASSICAL_AMG,
+		/**
+		 * Load default parameters consistent with AIR
+		 */
+		AIR_AMG,
+		/**
+		 * Create an empty parameter map
+		 */
+		NONE
+	};
+
 	/**
 	 * Constructor.
 	 *
 	 * @param parameters_obj
 	 */
 
-	SolverBoomerAMG(BoomerAMG_Parameters & parameters_obj):parameters_obj(parameters_obj){};
+	SolverBoomerAMG(AMG_type config_selection);
 	/**
 	 * Solver function
 	 *
@@ -357,8 +547,7 @@ public:
 			   LA::Vector & right_hand_side,
 			   LA::Vector &solution);
 
-private:
-	BoomerAMG_Parameters & parameters_obj;
+	ifpackHypreSolverPrecondParameters SolverParameters;
 
 };
 
