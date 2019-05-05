@@ -435,12 +435,15 @@ void AdvectionProblem<dim>::solve(LA::MPI::Vector &solution)
 
 	precondition(system_matrix, right_hand_side);
 
-	TrilinosWrappers::BoomerAMG_Parameters AMG_parameters(TrilinosWrappers::BoomerAMG_Parameters::AIR_AMG);
+	TrilinosWrappers::BoomerAMGParameters AMG_parameters(TrilinosWrappers::BoomerAMGParameters::AIR_AMG, Hypre_Chooser::Solver);
+    /**
+     * Demonstrate changing a parameter value
+     */
 	AMG_parameters.set_parameter_value("distance_R",1.0);
-
 	TrilinosWrappers::SolverBoomerAMG AMG_solver(AMG_parameters);
 
 	AMG_solver.solve(system_matrix, right_hand_side, solution);
+
 }
 
 
