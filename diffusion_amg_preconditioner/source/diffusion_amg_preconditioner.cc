@@ -11,6 +11,7 @@
 
 #include <deal.II/lac/trilinos_vector.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
+#include <deal.II/lac/trilinos_solver.h>
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/tria_accessor.h>
@@ -39,51 +40,63 @@ namespace LA =  dealii::LinearAlgebraTrilinos;
 
 using namespace dealii;
 
-// ******** Diffusion Coefficient Function ****
+
 //
-// absorption coefficients. Region 1 is the outer box or cube, region 2
-// is the inner region
+// Diffusion coefficients.
 //
-double diff_reg1=10.0 , diff_reg2=0.0001;
-//
-// inner box dimensions, box is centered within larger outer box
-//
-double lx=0.4,ly=0.4,lz=0.4;
+double diff_reg1=100.0 , diff_reg2=0.001;
 //
 // cube or box dimensions
 //
 double Lx=1.0,Ly=1.0,Lz=1.0;
 //
+// Band thickness
+//
+double dx=0.2;
+//
+//number of bands
+//
+int nx=3;
 //
 template<int dim>
-double diff_coef(typename DoFHandler<dim>::active_cell_iterator & cell){
-
-	bool region2=false;
+double banded_diff_coef(typename DoFHandler<dim>::active_cell_iterator & cell){
 
 	int vertices;
 	if (dim==2) vertices=4;
 	else vertices = 8;
 
+	bool region2 = false;
+
+	double r_strt,r_end;
+
+	double L1 = (Lx-(dx*nx))/((double)(nx-1));
+
 	for (unsigned int i=0;i<vertices;++i){
 
 		dealii::Point<dim> location=cell->vertex(i);
 
-		if (location(0) > Lx/2.0 + lx/2.0 || location(0)< Lx/2.0-lx/2.0 ){
-			continue;
-		} else if  ( location(1) > Ly/2.0 + ly/2.0 ||  location(1)< Ly/2.0-ly/2.0 ){
-			continue;
-		}else if (dim==3){
-			if (location(2) > Lz/2.0 + lz/2.0 ||  location(2)< Lz/2.0-lz/2.0){
-				continue;
-			} else{
-				region2=true;
-			}
+		for (int n=1;n<=nx;++n){
+			r_strt = (dx+L1)*( (double)(n-1) );
+			r_end = r_strt + dx;
 
-		} else{
-			region2=true;
+			if (location(0)>=r_strt && location(0)<=r_end){
+				if (n%3==0 ){
+					region2=true;
+					break;
+				}else if (n%3==1 && location(1) > Ly/7 && location(1)< Ly*0.6){
+					region2=true;
+					break;
+				}else if (n%3==2 && (location(1) < Ly/4.0 || location(1)> Ly*0.75 )  ){
+					region2=true;
+					break;
+				}
+
+			}
 		}
+
 		if (region2)
 			break;
+
 	}
 
 	double diffusion;
@@ -98,16 +111,18 @@ double diff_coef(typename DoFHandler<dim>::active_cell_iterator & cell){
 //
 //
 template <int dim>
-class LaplaceProblem
+class DiffusionSolverTest
 {
 public:
-  LaplaceProblem ();
-  ~LaplaceProblem ();
+  enum solver_options {CG,JPCG,ICPCG,MLPCG,PCG,Classic_AMG,AIR_AMG};
+  enum diffusion_coef_typ {CONST_DIFF, VARRYING_DIFF};
+  DiffusionSolverTest (diffusion_coef_typ diff_coeff_selection);
+  ~DiffusionSolverTest ();
   void run ();
 private:
   void setup_system ();
   void assemble_system ();
-  void solve ();
+  void solve (solver_options solver_selection);
   void refine_grid ();
   void output_results (const unsigned int cycle) const;
   MPI_Comm                                  mpi_communicator;
@@ -122,9 +137,10 @@ private:
   LA::MPI::Vector                           system_rhs;
   ConditionalOStream                        pcout;
   TimerOutput                               computing_timer;
+  diffusion_coef_typ diff_coeff_selection;
 };
 template <int dim>
-LaplaceProblem<dim>::LaplaceProblem ()
+DiffusionSolverTest<dim>::DiffusionSolverTest (diffusion_coef_typ diff_coeff_selection)
   :
   mpi_communicator (MPI_COMM_WORLD),
   triangulation (mpi_communicator,
@@ -132,22 +148,23 @@ LaplaceProblem<dim>::LaplaceProblem ()
                  (Triangulation<dim>::smoothing_on_refinement |
                   Triangulation<dim>::smoothing_on_coarsening)),
   dof_handler (triangulation),
-  fe (2),
+  fe (1),
   pcout (std::cout,
          (Utilities::MPI::this_mpi_process(mpi_communicator)
           == 0)),
   computing_timer (mpi_communicator,
                    pcout,
                    TimerOutput::summary,
-                   TimerOutput::wall_times)
+                   TimerOutput::wall_times),
+  diff_coeff_selection(diff_coeff_selection)
 {}
 template <int dim>
-LaplaceProblem<dim>::~LaplaceProblem ()
+DiffusionSolverTest<dim>::~DiffusionSolverTest ()
 {
   dof_handler.clear ();
 }
 template <int dim>
-void LaplaceProblem<dim>::setup_system ()
+void DiffusionSolverTest<dim>::setup_system ()
 {
   TimerOutput::Scope t(computing_timer, "setup");
   dof_handler.distribute_dofs (fe);
@@ -178,7 +195,7 @@ void LaplaceProblem<dim>::setup_system ()
                         mpi_communicator);
 }
 template <int dim>
-void LaplaceProblem<dim>::assemble_system ()
+void DiffusionSolverTest<dim>::assemble_system ()
 {
   TimerOutput::Scope t(computing_timer, "assembly");
   const QGauss<dim>  quadrature_formula(3);
@@ -198,7 +215,13 @@ void LaplaceProblem<dim>::assemble_system ()
     if (cell->is_locally_owned())
       {
 
-    	const double D = diff_coef<dim>(cell);
+    	double D = 0.0;
+
+    	if (diff_coeff_selection == CONST_DIFF){
+    		D=1.0;
+    	} else{
+    		D = banded_diff_coef<dim>(cell);
+    	}
 
         cell_matrix = 0;
         cell_rhs = 0;
@@ -236,45 +259,145 @@ void LaplaceProblem<dim>::assemble_system ()
 }
 
 template <int dim>
-void LaplaceProblem<dim>::solve ()
+void DiffusionSolverTest<dim>::solve (solver_options solver_selection)
 {
+
   TimerOutput::Scope t(computing_timer, "solve");
   LA::MPI::Vector
   completely_distributed_solution (locally_owned_dofs, mpi_communicator);
 
-  TrilinosWrappers::BoomerAMG_Parameters
-  AMG_parameters(TrilinosWrappers::BoomerAMG_Parameters::CLASSICAL_AMG);
+  //TrilinosWrappers::BoomerAMG_Parameters
+  //AMG_parameters(TrilinosWrappers::BoomerAMG_Parameters::CLASSICAL_AMG);
 
   //TrilinosWrappers::SolverBoomerAMG AMG_solver(AMG_parameters);
 
-  TrilinosWrappers::BoomerAMG_PreconditionedSolver AMG_solver(AMG_parameters);
+  //CG,PCG,Classic_AMG,AIR_AMG
 
-  //BoomerAMG_PreconditionedSolver
+  //ICPCG
 
-  AMG_solver.solve(system_matrix, system_rhs, completely_distributed_solution);
+	switch(solver_selection)
+	{
+	case PCG:
+	{
 
-  constraints.distribute (completely_distributed_solution);
-  locally_relevant_solution = completely_distributed_solution;
+		TrilinosWrappers::BoomerAMGParameters AMG_parameters(TrilinosWrappers::BoomerAMGParameters::CLASSICAL_AMG, Hypre_Chooser::Preconditioner);
+		TrilinosWrappers::ifpackSolverParameters Solver_params(Hypre_Solver::PCG);
+
+		typedef TrilinosWrappers::ifpackSolverParameters::parameter_data parameter_data;
+		/**
+		 * deomonstrating how to add parameters
+		 */
+		Solver_params.add_parameter("pcg_convergence_tol", parameter_data(1.e-10,&HYPRE_ParCSRPCGSetTol) );
+		Solver_params.add_parameter("pcg_max_itter", parameter_data(3000,&HYPRE_ParCSRPCGSetMaxIter) );
+		Solver_params.add_parameter("pcg_print_level", parameter_data(3,&HYPRE_ParCSRPCGSetPrintLevel) );
+
+		TrilinosWrappers::BoomerAMG_PreconditionedSolver AMG_solver(AMG_parameters,Solver_params);
+
+		AMG_solver.solve(system_matrix, system_rhs, completely_distributed_solution);
+		break;
+	}
+	case CG:
+	{
+
+		dealii::SolverControl solver_control(3000,1e-10);
+		TrilinosWrappers::SolverCG::AdditionalData additional_data(true);
+		TrilinosWrappers::SolverCG solver(solver_control, additional_data);
+
+		solver.solve(system_matrix,completely_distributed_solution,system_rhs,TrilinosWrappers::PreconditionIdentity() );
+
+		break;
+	}
+	case ICPCG:
+	{
+
+		dealii::SolverControl solver_control(3000,1e-10);
+		TrilinosWrappers::SolverCG::AdditionalData additional_data(true);
+		TrilinosWrappers::SolverCG solver(solver_control, additional_data);
+
+		TrilinosWrappers::PreconditionIC ic_prcond;
+
+		ic_prcond.initialize(system_matrix);
+
+		solver.solve(system_matrix,completely_distributed_solution,system_rhs, ic_prcond);
+
+		break;
+	}
+	case Classic_AMG:
+	{
+	    TrilinosWrappers::BoomerAMGParameters AMG_parameters(TrilinosWrappers::BoomerAMGParameters::CLASSICAL_AMG, Hypre_Chooser::Solver);
+
+		TrilinosWrappers::SolverBoomerAMG AMG_solver(AMG_parameters);
+
+		AMG_solver.solve(system_matrix, system_rhs, completely_distributed_solution);
+
+		break;
+	}
+
+	case MLPCG:
+	{
+		SolverControl solver_control (3000, 1e-12);
+		TrilinosWrappers::SolverCG::AdditionalData additional_data(true);
+		LA::SolverCG solver(solver_control,additional_data);
+
+	    LA::MPI::PreconditionAMG preconditioner;
+	    LA::MPI::PreconditionAMG::AdditionalData data;
+
+	    preconditioner.initialize(system_matrix);
+    	solver.solve (system_matrix, completely_distributed_solution, system_rhs,
+    	              preconditioner);
+	}
+
+	}
+	constraints.distribute (completely_distributed_solution);
+	locally_relevant_solution = completely_distributed_solution;
+
 }
 
 template <int dim>
-void LaplaceProblem<dim>::refine_grid ()
+void DiffusionSolverTest<dim>::refine_grid ()
 {
   TimerOutput::Scope t(computing_timer, "refine");
-  Vector<float> estimated_error_per_cell (triangulation.n_active_cells());
-  KellyErrorEstimator<dim>::estimate (dof_handler,
-                                      QGauss<dim-1>(3),
-                                      typename FunctionMap<dim>::type(),
-                                      locally_relevant_solution,
-                                      estimated_error_per_cell);
-  parallel::distributed::GridRefinement::
-  refine_and_coarsen_fixed_number (triangulation,
-                                   estimated_error_per_cell,
-                                   0.3, 0.03);
-  triangulation.execute_coarsening_and_refinement ();
+
+	dealii::Point<dim> lower_left_pt, upper_right_pt;
+
+	if (dim == 2){
+		lower_left_pt[0] = 0.0;
+		lower_left_pt[1] = 0.0;
+		upper_right_pt[0] = 1.0;
+		upper_right_pt[1] = 1.0;
+	} else{
+		lower_left_pt[0] = 0.0;
+		lower_left_pt[1] = 0.0;
+		lower_left_pt[2] = 0.0;
+		upper_right_pt[0] = 1.0;
+		upper_right_pt[1] = 1.0;
+		upper_right_pt[2] = 1.0;
+	}
+
+	std::vector<unsigned int> repetitions(dim);
+
+	for (int i=0;i<repetitions.size();++i)
+		repetitions[i] = 2;
+
+	dealii::GridGenerator::subdivided_hyper_rectangle<dim,dim>(triangulation , repetitions , lower_left_pt , upper_right_pt);
+
+  Vector<float> dummy_error;
+
+  triangulation.refine_global(1);
+  //8 gets about 1e6 cells, 6 solvers all competitive
+  for(int i=0;i<7;++i){
+  	dummy_error.reinit(triangulation.n_active_cells());
+  	dummy_error = 1.0;
+  	parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(triangulation,dummy_error,1.0,0.0);
+  	triangulation.execute_coarsening_and_refinement();
+  }
+
+  pcout << "Number of active cells: " << triangulation.n_active_cells()
+            << std::endl;
+
 }
 template <int dim>
-void LaplaceProblem<dim>::output_results (const unsigned int cycle) const
+void DiffusionSolverTest<dim>::output_results (const unsigned int cycle) const
 {
   DataOut<dim> data_out;
   data_out.attach_dof_handler (dof_handler);
@@ -309,42 +432,56 @@ void LaplaceProblem<dim>::output_results (const unsigned int cycle) const
     }
 }
 template <int dim>
-void LaplaceProblem<dim>::run ()
+void DiffusionSolverTest<dim>::run ()
 {
 
     pcout << "Running with Trilinos on "
           << Utilities::MPI::n_mpi_processes(mpi_communicator)
           << " MPI rank(s)..." << std::endl;
 
-  const unsigned int n_cycles = 8;
-  for (unsigned int cycle=0; cycle<n_cycles; ++cycle)
-    {
-      pcout << "Cycle " << cycle << ':' << std::endl;
-      if (cycle == 0)
-        {
-          GridGenerator::hyper_cube (triangulation);
-          triangulation.refine_global (5);
-        }
-      else
-        refine_grid ();
-      setup_system ();
-      pcout << "   Number of active cells:       "
-            << triangulation.n_global_active_cells()
-            << std::endl
-            << "   Number of degrees of freedom: "
-            << dof_handler.n_dofs()
-            << std::endl;
-      assemble_system ();
-      solve ();
-      if (Utilities::MPI::n_mpi_processes(mpi_communicator) <= 32)
-        {
-          TimerOutput::Scope t(computing_timer, "output");
-          output_results (cycle);
-        }
-      computing_timer.print_summary ();
-      computing_timer.reset ();
-      pcout << std::endl;
-    }
+  refine_grid ();
+
+  pcout << "Solver CG"<< std::endl;
+  setup_system ();
+  assemble_system ();
+  solve (DiffusionSolverTest<2>::CG);
+  computing_timer.print_summary ();
+  computing_timer.reset ();
+  pcout << std::endl;
+
+  pcout << "Solver ICPCG"<< std::endl;
+  setup_system ();
+  assemble_system ();
+  solve (DiffusionSolverTest<2>::ICPCG);
+  computing_timer.print_summary ();
+  computing_timer.reset ();
+  pcout << std::endl;
+
+  pcout << "Solver PCG"<< std::endl;
+  setup_system ();
+  assemble_system ();
+  solve (DiffusionSolverTest<2>::PCG);
+  computing_timer.print_summary ();
+  computing_timer.reset ();
+  pcout << std::endl;
+
+  pcout << "BoomerAMG solver"<< std::endl;
+  setup_system ();
+  assemble_system ();
+  solve (DiffusionSolverTest<2>::Classic_AMG);
+  computing_timer.print_summary ();
+  computing_timer.reset ();
+  pcout << std::endl;
+
+  pcout << "MLPCG"<< std::endl;
+  setup_system ();
+  assemble_system ();
+  solve (DiffusionSolverTest<2>::MLPCG);
+  computing_timer.print_summary ();
+  computing_timer.reset ();
+  pcout << std::endl;
+
+  output_results (1);
 }
 
 
@@ -353,7 +490,7 @@ int main(int argc, char *argv[])
   try
     {
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-      LaplaceProblem<2> laplace_problem_2d;
+      DiffusionSolverTest<2> laplace_problem_2d(DiffusionSolverTest<2>::VARRYING_DIFF);
       laplace_problem_2d.run ();
     }
   catch (std::exception &exc)
