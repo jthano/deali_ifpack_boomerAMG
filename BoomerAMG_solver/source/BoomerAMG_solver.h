@@ -463,5 +463,17 @@ private:
 };
 
 
+class ifpack_solver{
+public:
+	ifpack_solver(ifpackSolverParameters & solver_parameters):solver_parameters(solver_parameters){};
+
+	void solve(LA::SparseMatrix & system_matrix,
+			   LA::Vector & right_hand_side,
+			   LA::Vector &solution);
+
+private:
+	ifpackSolverParameters & solver_parameters;
+};
+
 } // Close namespace TrilinosWrappers
 DEAL_II_NAMESPACE_CLOSE

@@ -215,7 +215,30 @@ void BoomerAMG_PreconditionedSolver::solve(LA::SparseMatrix & system_matrix,LA::
 
 	Epetra_FEVector & ref_soln = solution.trilinos_vector();
 
-	int status = hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+	hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+
+}
+
+void ifpack_solver::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
+
+	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());
+	Ifpack_Hypre hypre_interface( sys_matrix_pt );
+
+	Teuchos :: ParameterList parameter_list;
+	parameter_list.set("Solver",solver_parameters.solver_selection);
+	parameter_list.set("SolverOrPrecondition",Hypre_Chooser::Solver);
+	parameter_list.set("SetPreconditioner",false);
+
+	hypre_interface.SetParameters(parameter_list);
+	solver_parameters.set_parameters(hypre_interface);
+
+	hypre_interface.Initialize();
+
+	hypre_interface.Compute()  ;
+
+	Epetra_FEVector & ref_soln = solution.trilinos_vector();
+
+	hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
 
 }
 
