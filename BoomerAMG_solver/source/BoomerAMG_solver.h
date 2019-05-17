@@ -359,7 +359,11 @@ public:
 	 * @param solver_preconditioner_selection is either Hypre_Chooser:Solver or Hypre_Chooser:Preconditioner
 	 * and specifies whether the parameter object will be used of a solver or a preconditioner.
 	 */
-	BoomerAMGParameters(AMG_type config_selection, Hypre_Chooser solver_preconditioner_selection);
+	BoomerAMGParameters(AMG_type config_selection);
+
+
+
+	BoomerAMGParameters(int max_itter, double solv_tol,AMG_type config_selection);
 
 private:
 	/**
@@ -367,6 +371,10 @@ private:
 	 * AIR amg.
 	 */
 	static void set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj);
+	/**
+	 *
+	 */
+	void set_common_AMG_parameters(AMG_type config_selection);
 
 };
 

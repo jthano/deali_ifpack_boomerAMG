@@ -112,9 +112,26 @@ void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_precon
 
 }
 
-BoomerAMGParameters::BoomerAMGParameters(AMG_type config_selection, Hypre_Chooser solver_preconditioner_selection)
-:ifpackHypreSolverPrecondParameters(solver_preconditioner_selection)
+
+BoomerAMGParameters::BoomerAMGParameters(AMG_type config_selection)
+:ifpackHypreSolverPrecondParameters(Hypre_Chooser::Preconditioner)
 {
+	set_common_AMG_parameters(config_selection);
+	parameters.insert( {"hypre_print_level", parameter_data(1, & HYPRE_BoomerAMGSetPrintLevel)} );
+	parameters.insert( {"solve_tol", parameter_data(0.0, & HYPRE_BoomerAMGSetTol)} );
+	parameters.insert( {"max_itter", parameter_data(1, & HYPRE_BoomerAMGSetMaxIter)} );
+}
+
+BoomerAMGParameters::BoomerAMGParameters(int max_itter, double solv_tol,AMG_type config_selection)
+:ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
+{
+	set_common_AMG_parameters(config_selection);
+	parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
+	parameters.insert( {"solve_tol", parameter_data(solv_tol, & HYPRE_BoomerAMGSetTol)} );
+	parameters.insert( {"max_itter", parameter_data(max_itter, & HYPRE_BoomerAMGSetMaxIter)} );
+}
+
+void BoomerAMGParameters::set_common_AMG_parameters(AMG_type config_selection){
 	switch(config_selection)
 	{
 	case AIR_AMG:
@@ -131,21 +148,9 @@ BoomerAMGParameters::BoomerAMGParameters(AMG_type config_selection, Hypre_Choose
 		parameters.insert( {"filterA_tol", parameter_data(1.0e-4, & HYPRE_BoomerAMGSetADropTol)} );
 		parameters.insert( {"post_filter_R", parameter_data(0.0, & HYPRE_BoomerAMGSetFilterThresholdR)} );
 
-		parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
-
 		std::pair<std::string,std::string> relaxation_order("A","FFF");
 
 		parameters.insert({"relaxation_order", parameter_data( relaxation_order, &set_relaxation_order )} );
-
-		if (solver_preconditioner_selection == Hypre_Chooser::Solver){
-			parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
-			parameters.insert( {"solve_tol", parameter_data(1e-10, & HYPRE_BoomerAMGSetTol)} );
-			parameters.insert( {"max_itter", parameter_data(50, & HYPRE_BoomerAMGSetMaxIter)} );
-		} else{
-			parameters.insert( {"hypre_print_level", parameter_data(1, & HYPRE_BoomerAMGSetPrintLevel)} );
-			parameters.insert( {"solve_tol", parameter_data(0.0, & HYPRE_BoomerAMGSetTol)} );
-			parameters.insert( {"max_itter", parameter_data(1, & HYPRE_BoomerAMGSetMaxIter)} );
-		}
 
 		break;
 	}
@@ -154,22 +159,11 @@ BoomerAMGParameters::BoomerAMGParameters(AMG_type config_selection, Hypre_Choose
 		parameters.insert( {"relax_type", parameter_data(6, & HYPRE_BoomerAMGSetRelaxType)} );
 		parameters.insert( {"max_amg_levels", parameter_data(40, & HYPRE_BoomerAMGSetMaxLevels)} );
 
-		if (solver_preconditioner_selection == Hypre_Chooser::Solver){
-			parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
-			parameters.insert( {"solve_tol", parameter_data(1e-10, & HYPRE_BoomerAMGSetTol)} );
-			parameters.insert( {"max_itter", parameter_data(50, & HYPRE_BoomerAMGSetMaxIter)} );
-		} else{
-			parameters.insert( {"hypre_print_level", parameter_data(1, & HYPRE_BoomerAMGSetPrintLevel)} );
-			parameters.insert( {"solve_tol", parameter_data(0.0, & HYPRE_BoomerAMGSetTol)} );
-			parameters.insert( {"max_itter", parameter_data(1, & HYPRE_BoomerAMGSetMaxIter)} );
-		}
-
 		break;
 	case NONE:
 		break;
 	}
 }
-
 
 void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
 
