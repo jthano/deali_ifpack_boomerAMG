@@ -21,7 +21,7 @@ void ifpackHypreSolverPrecondParameters::set_parameters(Ifpack_Hypre & Ifpack_ob
 }
 
 
-void ifpackHypreSolverPrecondParameters::set_parameter_value(std::string name, param_value_variant value){
+void ifpackHypreSolverPrecondParameters::set_parameter_value(const std::string name,const param_value_variant value){
 
 	auto it = parameters.find(name);
 
@@ -30,7 +30,7 @@ void ifpackHypreSolverPrecondParameters::set_parameter_value(std::string name, p
 	(it->second).value = value;
 }
 
-void ifpackHypreSolverPrecondParameters::add_parameter(std::string name, parameter_data param_data){
+void ifpackHypreSolverPrecondParameters::add_parameter(const std::string name,const parameter_data param_data){
 
 	auto it = parameters.find(name);
 
@@ -40,7 +40,7 @@ void ifpackHypreSolverPrecondParameters::add_parameter(std::string name, paramet
 
 }
 
-void ifpackHypreSolverPrecondParameters::remove_parameter(std::string name){
+void ifpackHypreSolverPrecondParameters::remove_parameter(const std::string name){
 
 	auto it = parameters.find(name);
 
@@ -48,7 +48,10 @@ void ifpackHypreSolverPrecondParameters::remove_parameter(std::string name){
 		parameters.erase(it);
 
 }
-
+/**
+ * TODO:: Make this const function because should not modify anything, only return value
+ * @param name
+ */
 template<typename return_type>
 void ifpackHypreSolverPrecondParameters::return_parameter_value(std::string name){
 
@@ -113,7 +116,7 @@ void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_precon
 }
 
 
-BoomerAMGParameters::BoomerAMGParameters(AMG_type config_selection)
+BoomerAMGParameters::BoomerAMGParameters(const AMG_type config_selection)
 :ifpackHypreSolverPrecondParameters(Hypre_Chooser::Preconditioner)
 {
 	set_common_AMG_parameters(config_selection);
@@ -122,7 +125,7 @@ BoomerAMGParameters::BoomerAMGParameters(AMG_type config_selection)
 	parameters.insert( {"max_itter", parameter_data(1, & HYPRE_BoomerAMGSetMaxIter)} );
 }
 
-BoomerAMGParameters::BoomerAMGParameters(int max_itter, double solv_tol,AMG_type config_selection)
+BoomerAMGParameters::BoomerAMGParameters(const unsigned int max_itter,const double solv_tol,const AMG_type config_selection)
 :ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
 {
 	set_common_AMG_parameters(config_selection);
@@ -131,7 +134,7 @@ BoomerAMGParameters::BoomerAMGParameters(int max_itter, double solv_tol,AMG_type
 	parameters.insert( {"max_itter", parameter_data(max_itter, & HYPRE_BoomerAMGSetMaxIter)} );
 }
 
-void BoomerAMGParameters::set_common_AMG_parameters(AMG_type config_selection){
+void BoomerAMGParameters::set_common_AMG_parameters(const AMG_type config_selection){
 	switch(config_selection)
 	{
 	case AIR_AMG:

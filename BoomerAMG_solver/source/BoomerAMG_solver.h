@@ -81,7 +81,7 @@ public:
 	 * handle paramets for a solver or a preconditioner.
 	 */
 
-	ifpackHypreSolverPrecondParameters(Hypre_Chooser solver_preconditioner_selection):solver_preconditioner_selection(solver_preconditioner_selection){};
+	ifpackHypreSolverPrecondParameters(const Hypre_Chooser solver_preconditioner_selection):solver_preconditioner_selection(solver_preconditioner_selection){};
 
 	/**
 	 * This function can be used to change the value of a parameter in the parameters map that
@@ -91,7 +91,7 @@ public:
 	 * in the parameters parameter map. Use the add_parameter function to add a new parameters.
 	 * @param value This is the value to assign the parameter found at parameters[name]
 	 */
-	void set_parameter_value(std::string name, param_value_variant value);
+	void set_parameter_value(const std::string name,const param_value_variant value);
 	/**
 	 * This function can be used to add a new parameter to the
 	 *
@@ -101,22 +101,23 @@ public:
 	 * @param param_data is an instance of the parameter_data struct which contains the parameter
 	 * value and a pointer to the proper set function
 	 */
-	void add_parameter(std::string name, parameter_data param_data);
+	void add_parameter(const std::string name,const parameter_data param_data);
 
 	/**
 	 * Function to remove a parameter from the parameters parameter map
 	 *
 	 * @param name is the string parameter name to remove.
 	 */
-	void remove_parameter(std::string name);
+	void remove_parameter(const std::string name);
 
 	/**
+	 * TODO:: Make this const function because should not modify anything, only return value
 	 * Function to return the value of a parameter.
 	 *
 	 * @param name is the string parameter name of the parameter whose value is to be returned
 	 */
 	template<typename return_type>
-	void return_parameter_value(std::string name);
+	void return_parameter_value(const std::string name);
 	/**
 	 * This function is to be used by the solver or preconditioner class to set the parameter values. Note that all parameters contained
 	 * in the parameters map will be set.
@@ -359,11 +360,11 @@ public:
 	 * @param solver_preconditioner_selection is either Hypre_Chooser:Solver or Hypre_Chooser:Preconditioner
 	 * and specifies whether the parameter object will be used of a solver or a preconditioner.
 	 */
-	BoomerAMGParameters(AMG_type config_selection);
+	BoomerAMGParameters(const AMG_type config_selection);
 
 
 
-	BoomerAMGParameters(int max_itter, double solv_tol,AMG_type config_selection);
+	BoomerAMGParameters(const unsigned int max_itter,const double solv_tol,const AMG_type config_selection);
 
 private:
 	/**
@@ -374,7 +375,7 @@ private:
 	/**
 	 *
 	 */
-	void set_common_AMG_parameters(AMG_type config_selection);
+	void set_common_AMG_parameters(const AMG_type config_selection);
 
 };
 
