@@ -77,9 +77,9 @@ void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_precon
 	// Array to store relaxation scheme and pass to Hypre
 	int **grid_relax_points = (int **) malloc(4*sizeof(int *));
 	grid_relax_points[0] = NULL;
-	grid_relax_points[1] = (int *) malloc(sizeof(int)*ns_down);
-	grid_relax_points[2] = (int *) malloc(sizeof(int)*ns_up);
-	grid_relax_points[3] = (int *) malloc(sizeof(int));
+	grid_relax_points[1] = std::unique_ptr<int>(new int [ns_down]); //(int *) malloc(sizeof(int)*ns_down);
+	grid_relax_points[2] = std::unique_ptr<int>(new int [ns_up]);//(int *) malloc(sizeof(int)*ns_up);
+	grid_relax_points[3] = std::unique_ptr<int>(new int [0]);//(int *) malloc(sizeof(int));
 	grid_relax_points[3][0] = 0;
 
 	// set down relax scheme
