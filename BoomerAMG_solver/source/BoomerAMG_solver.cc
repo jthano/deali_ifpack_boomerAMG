@@ -78,45 +78,42 @@ void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_precon
 	const unsigned int ns_up = param_value.second.length();
 	const unsigned int ns_coarse = 1 ;
 
-	const std::string F("F");
-	const std::string C("C");
-	const std::string A("A");
-
 	// Array to store relaxation scheme and pass to Hypre
-	int **grid_relax_points = (int **) malloc(4*sizeof(int *));
+	std::unique_ptr<int*[]> grid_relax_points(new int*[4]());
+	//
 	grid_relax_points[0] = NULL;
-	grid_relax_points[1] = std::unique_ptr<int>(new int [ns_down]); //(int *) malloc(sizeof(int)*ns_down);
-	grid_relax_points[2] = std::unique_ptr<int>(new int [ns_up]);//(int *) malloc(sizeof(int)*ns_up);
-	grid_relax_points[3] = std::unique_ptr<int>(new int [0]);//(int *) malloc(sizeof(int));
+	grid_relax_points[1] = std::unique_ptr<int>(new int [ns_down]).get();
+	grid_relax_points[2] = std::unique_ptr<int>(new int [ns_up]).get();
+	grid_relax_points[3] = std::unique_ptr<int>(new int [0]).get();
 	grid_relax_points[3][0] = 0;
 
 	// set down relax scheme
 	for(unsigned int i = 0; i<ns_down; i++) {
-	    if (param_value.first.compare(i,1,F) == 0) {
+	    if (param_value.first.compare(i,1,"F") == 0) {
 	       grid_relax_points[1][i] = -1;
 	    }
-	    else if (param_value.first.compare(i,1,C) == 0) {
+	    else if (param_value.first.compare(i,1,"C") == 0) {
 	       grid_relax_points[1][i] = 1;
 	    }
-	    else if (param_value.first.compare(i,1,A) == 0) {
+	    else if (param_value.first.compare(i,1,"A") == 0) {
 	       grid_relax_points[1][i] = 0;
 	    }
 	 }
 
 	 // set up relax scheme
 	 for(unsigned int i = 0; i<ns_up; i++) {
-	    if (param_value.second.compare(i,1,F) == 0) {
+	    if (param_value.second.compare(i,1,"F") == 0) {
 	       grid_relax_points[2][i] = -1;
 	    }
-	    else if (param_value.second.compare(i,1,C) == 0) {
+	    else if (param_value.second.compare(i,1,"C") == 0) {
 	       grid_relax_points[2][i] = 1;
 	    }
-	    else if (param_value.second.compare(i,1,A) == 0) {
+	    else if (param_value.second.compare(i,1,"A") == 0) {
 	       grid_relax_points[2][i] = 0;
 	    }
 	 }
 
-	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetGridRelaxPoints , grid_relax_points);
+	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetGridRelaxPoints , grid_relax_points.get());
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_coarse,3);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_down,1);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_up,2);
