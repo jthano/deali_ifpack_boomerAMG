@@ -62,6 +62,14 @@ void ifpackHypreSolverPrecondParameters::return_parameter_value(std::string name
 }
 
 
+ifpackSolverParameters::ifpackSolverParameters(Hypre_Solver solver_selection/*=Hypre_Solver::PCG*/)
+:
+solver_selection(solver_selection),
+ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
+{
+
+}
+
 void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj){
 
 	std::pair<std::string,std::string> param_value = boost::get< std::pair<std::string,std::string> >(param_data.value);
@@ -125,7 +133,7 @@ BoomerAMGParameters::BoomerAMGParameters(const AMG_type config_selection)
 	parameters.insert( {"max_itter", parameter_data(1, & HYPRE_BoomerAMGSetMaxIter)} );
 }
 
-BoomerAMGParameters::BoomerAMGParameters(const unsigned int max_itter,const double solv_tol,const AMG_type config_selection)
+BoomerAMGParameters::BoomerAMGParameters(const int max_itter,const double solv_tol,const AMG_type config_selection)
 :ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
 {
 	set_common_AMG_parameters(config_selection);
@@ -153,7 +161,7 @@ void BoomerAMGParameters::set_common_AMG_parameters(const AMG_type config_select
 
 		std::pair<std::string,std::string> relaxation_order("A","FFF");
 
-		parameters.insert({"relaxation_order", parameter_data( relaxation_order, &set_relaxation_order )} );
+		parameters.insert( {"relaxation_order", parameter_data( relaxation_order, &set_relaxation_order )} );
 
 		break;
 	}

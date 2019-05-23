@@ -198,7 +198,6 @@ private:
 		}
 	};
 
-
 };
 
 /**
@@ -363,8 +362,7 @@ public:
 	BoomerAMGParameters(const AMG_type config_selection);
 
 
-
-	BoomerAMGParameters(const unsigned int max_itter,const double solv_tol,const AMG_type config_selection);
+	BoomerAMGParameters(const int max_itter,const double solv_tol,const AMG_type config_selection);
 
 private:
 	/**
@@ -389,8 +387,7 @@ public:
 	 * Constructor
 	 * @param solver_selection specifies the solver type to be used.
 	 */
-	ifpackSolverParameters(Hypre_Solver solver_selection=Hypre_Solver::PCG) :solver_selection(solver_selection), ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
-	{};
+	ifpackSolverParameters(Hypre_Solver solver_selection=Hypre_Solver::PCG);
 
 	/**
 	 *
