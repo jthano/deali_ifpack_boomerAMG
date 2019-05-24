@@ -62,12 +62,19 @@ void ifpackHypreSolverPrecondParameters::return_parameter_value(std::string name
 }
 
 
-ifpackSolverParameters::ifpackSolverParameters(Hypre_Solver solver_selection/*=Hypre_Solver::PCG*/)
+ifpackSolverParameters::ifpackSolverParameters(const unsigned int max_itter,const double solv_tol,const Hypre_Solver solver_selection/*=Hypre_Solver::PCG*/)
 :
 solver_selection(solver_selection),
 ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
 {
-
+	switch(solver_selection)
+	{
+	case Hypre_Solver::PCG:
+		parameters.insert( {"pcg_convergence_tol", parameter_data(solv_tol, & HYPRE_ParCSRPCGSetTol)} );
+		parameters.insert({"pcg_max_itter", parameter_data((int)max_itter,&HYPRE_ParCSRPCGSetMaxIter)});
+		parameters.insert({"pcg_print_level", parameter_data(3,&HYPRE_ParCSRPCGSetPrintLevel)});
+		break;
+	}
 }
 
 void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_preconditioner_selection, const parameter_data & param_data, Ifpack_Hypre & Ifpack_obj){
@@ -130,13 +137,13 @@ BoomerAMGParameters::BoomerAMGParameters(const AMG_type config_selection)
 	parameters.insert( {"max_itter", parameter_data(1, & HYPRE_BoomerAMGSetMaxIter)} );
 }
 
-BoomerAMGParameters::BoomerAMGParameters(const int max_itter,const double solv_tol,const AMG_type config_selection)
+BoomerAMGParameters::BoomerAMGParameters(const unsigned int max_itter,const double solv_tol,const AMG_type config_selection)
 :ifpackHypreSolverPrecondParameters(Hypre_Chooser::Solver)
 {
 	set_common_AMG_parameters(config_selection);
 	parameters.insert( {"hypre_print_level", parameter_data(3, & HYPRE_BoomerAMGSetPrintLevel)} );
 	parameters.insert( {"solve_tol", parameter_data(solv_tol, & HYPRE_BoomerAMGSetTol)} );
-	parameters.insert( {"max_itter", parameter_data(max_itter, & HYPRE_BoomerAMGSetMaxIter)} );
+	parameters.insert( {"max_itter", parameter_data((int)max_itter, & HYPRE_BoomerAMGSetMaxIter)} );
 }
 
 void BoomerAMGParameters::set_common_AMG_parameters(const AMG_type config_selection){
