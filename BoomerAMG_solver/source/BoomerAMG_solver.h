@@ -13,8 +13,6 @@ DEAL_II_NAMESPACE_OPEN
 
 namespace TrilinosWrappers {
 
-namespace LA =  dealii::LinearAlgebraTrilinos::MPI;
-
 /**
  * This class is meatn to handle parameters that are used by hypre solvers and preconditioners. It stores parameter values and also interfaces
  * with an ifpack_Hypre object to actually set the parameter values.
@@ -411,16 +409,14 @@ public:
 	 */
 	SolverBoomerAMG(BoomerAMGParameters & SolverParameters):
 		SolverParameters(SolverParameters){};
-	/**
-	 * Solver function
-	 *
-     * @param system_matrix is the system matrix
-     * @param right_hand_side it the right hand side for the system
-     * @param solution is the solution vector into which the solution will be written
-	 */
-	void solve(LA::SparseMatrix & system_matrix,
-			   LA::Vector & right_hand_side,
-			   LA::Vector &solution);
+
+    /**
+     * Solve the linear system <tt>Ax=b</tt> where <tt>A</tt> is a matrix,
+     * @p x and @p b are vectors.
+     */
+	void solve(LinearAlgebraTrilinos::MPI::SparseMatrix & A,
+			   LinearAlgebraTrilinos::MPI::Vector &x,
+			   LinearAlgebraTrilinos::MPI::Vector & b);
 private:
 	/**
 	 * SolverParameters is set by the constructor and stores a reference to the parameter object
@@ -446,15 +442,12 @@ public:
 	:BoomerAMG_precond_parameters(BoomerAMG_precond_parameters),solver_parameters(solver_parameters){};
 
     /**
-     *  Solver function
-     *
-     * @param system_matrix is the system matrix
-     * @param right_hand_side it the right hand side for the system
-     * @param solution is the solution vector into which the solution will be written
+     * Solve the linear system <tt>Ax=b</tt> where <tt>A</tt> is a matrix,
+     * @p x and @p b are vectors.
      */
-	void solve(LA::SparseMatrix & system_matrix,
-			   LA::Vector & right_hand_side,
-			   LA::Vector &solution);
+	void solve(LinearAlgebraTrilinos::MPI::SparseMatrix & A,
+			   LinearAlgebraTrilinos::MPI::Vector &x,
+			   LinearAlgebraTrilinos::MPI::Vector & b);
 private:
 	/**
 	 * BoomerAMG_precond_parameters is set by the constructor and stores a reference to the parameter object handling the BoomerAMG
@@ -471,11 +464,15 @@ private:
 
 class ifpack_solver{
 public:
-	ifpack_solver(ifpackSolverParameters & solver_parameters):solver_parameters(solver_parameters){};
 
-	void solve(LA::SparseMatrix & system_matrix,
-			   LA::Vector & right_hand_side,
-			   LA::Vector &solution);
+	ifpack_solver(ifpackSolverParameters & solver_parameters):solver_parameters(solver_parameters){};
+    /**
+     * Solve the linear system <tt>Ax=b</tt> where <tt>A</tt> is a matrix,
+     * @p x and @p b are vectors.
+     */
+	void solve(LinearAlgebraTrilinos::MPI::SparseMatrix & A,
+			   LinearAlgebraTrilinos::MPI::Vector &x,
+			   LinearAlgebraTrilinos::MPI::Vector & b);
 
 private:
 	ifpackSolverParameters & solver_parameters;

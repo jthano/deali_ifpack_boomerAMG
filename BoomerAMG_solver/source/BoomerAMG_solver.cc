@@ -180,9 +180,9 @@ void BoomerAMGParameters::set_common_AMG_parameters(const AMG_type config_select
 	}
 }
 
-void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
+void SolverBoomerAMG::solve(LinearAlgebraTrilinos::MPI::SparseMatrix & A,LinearAlgebraTrilinos::MPI::Vector & x,LinearAlgebraTrilinos::MPI::Vector &b){
 
-	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());
+	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&A.trilinos_matrix());
 	Ifpack_Hypre hypre_interface( sys_matrix_pt );
 
 	Teuchos :: ParameterList parameter_list;
@@ -195,16 +195,16 @@ void SolverBoomerAMG::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_
 
 	hypre_interface.Compute()  ;
 
-	Epetra_FEVector & ref_soln = solution.trilinos_vector();
+	Epetra_FEVector & ref_soln = x.trilinos_vector();
 
-	hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+	hypre_interface.ApplyInverse(b.trilinos_vector(),ref_soln);
 
 }
 
 
-void BoomerAMG_PreconditionedSolver::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
+void BoomerAMG_PreconditionedSolver::solve(LinearAlgebraTrilinos::MPI::SparseMatrix & A,LinearAlgebraTrilinos::MPI::Vector & x,LinearAlgebraTrilinos::MPI::Vector &b){
 
-	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());
+	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&A.trilinos_matrix());
 	Ifpack_Hypre hypre_interface( sys_matrix_pt );
 
 	Teuchos :: ParameterList parameter_list;
@@ -222,15 +222,15 @@ void BoomerAMG_PreconditionedSolver::solve(LA::SparseMatrix & system_matrix,LA::
 
 	hypre_interface.Compute()  ;
 
-	Epetra_FEVector & ref_soln = solution.trilinos_vector();
+	Epetra_FEVector & ref_soln = x.trilinos_vector();
 
-	hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+	hypre_interface.ApplyInverse(b.trilinos_vector(),ref_soln);
 
 }
 
-void ifpack_solver::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_hand_side,LA::Vector &solution){
+void ifpack_solver::solve(LinearAlgebraTrilinos::MPI::SparseMatrix & A, LinearAlgebraTrilinos::MPI::Vector & x, LinearAlgebraTrilinos::MPI::Vector &b){
 
-	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&system_matrix.trilinos_matrix());
+	Epetra_CrsMatrix * sys_matrix_pt=const_cast<Epetra_CrsMatrix *>(&A.trilinos_matrix());
 	Ifpack_Hypre hypre_interface( sys_matrix_pt );
 
 	Teuchos :: ParameterList parameter_list;
@@ -245,9 +245,9 @@ void ifpack_solver::solve(LA::SparseMatrix & system_matrix,LA::Vector & right_ha
 
 	hypre_interface.Compute()  ;
 
-	Epetra_FEVector & ref_soln = solution.trilinos_vector();
+	Epetra_FEVector & ref_soln = x.trilinos_vector();
 
-	hypre_interface.ApplyInverse(right_hand_side.trilinos_vector(),ref_soln);
+	hypre_interface.ApplyInverse(b.trilinos_vector(),ref_soln);
 
 }
 
