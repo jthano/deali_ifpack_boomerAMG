@@ -84,14 +84,15 @@ void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_precon
 	const unsigned int ns_down = param_value.first.length();
 	const unsigned int ns_up = param_value.second.length();
 	const unsigned int ns_coarse = 1 ;
-
-	// Array to store relaxation scheme and pass to Hypre
-	std::unique_ptr<int*[]> grid_relax_points(new int*[4]());
+	//
+	// hypre will free this memory
+	//
+	int** grid_relax_points = new int*[4];
 	//
 	grid_relax_points[0] = NULL;
-	grid_relax_points[1] = std::unique_ptr<int>(new int [ns_down]).get();
-	grid_relax_points[2] = std::unique_ptr<int>(new int [ns_up]).get();
-	grid_relax_points[3] = std::unique_ptr<int>(new int [0]).get();
+	grid_relax_points[1] = new int [ns_down];
+	grid_relax_points[2] = new int [ns_up];
+	grid_relax_points[3] = new int [1];
 	grid_relax_points[3][0] = 0;
 
 	// set down relax scheme
@@ -120,7 +121,7 @@ void BoomerAMGParameters::set_relaxation_order(const Hypre_Chooser solver_precon
 	    }
 	 }
 
-	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetGridRelaxPoints , grid_relax_points.get());
+	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetGridRelaxPoints , grid_relax_points);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_coarse,3);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_down,1);
 	Ifpack_obj.SetParameter(solver_preconditioner_selection , & HYPRE_BoomerAMGSetCycleNumSweeps , ns_up,2);
